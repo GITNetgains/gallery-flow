@@ -1,0 +1,119 @@
+<div id="upload-gallery-modal-overlay" class="Polaris-Backdrop" style="
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+">
+  <div class="Polaris-Modal-Dialog__Container" style="
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+  ">
+    <div class="Polaris-Modal-Dialog" style="
+      position: relative;
+      background: white;
+      border-radius: 8px;
+      max-width: 450px;
+      width: 90%;
+      padding: 40px 30px 30px 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    ">
+      <!-- Close X button -->
+      <button id="close-upload-gallery-modal" type="button" style="
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+        cursor: pointer;
+      ">&times;</button>
+
+      <!-- Modal Header -->
+      <div class="Polaris-Modal-Header" style="text-align: center; margin-bottom: 20px;">
+        <h2 class="Polaris-Modal-Header__Title" style="font-size: 20px; font-weight: 600;">
+          Upload Gallery
+        </h2>
+      </div>
+
+      <div class="Polaris-Modal__BodyWrapper">
+        <div class="Polaris-Modal__Body">
+          <form id="upload-gallery-form" enctype="multipart/form-data">
+            <input type="hidden" name="customerId" id="upload-customer-id" />
+            <input type="hidden" name="name" id="upload-customer-name" />
+            <input type="hidden" name="email" id="upload-customer-email" />
+
+            <div class="Polaris-FormLayout" style="display: flex; flex-direction: column; gap: 15px;">
+
+              <!-- Type Dropdown -->
+              <div class="Polaris-FormLayout__Item">
+                <select
+                  id="upload-type"
+                  required
+                  class="Polaris-Select"
+                  style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;"
+                >
+                  <option value="">Select Type</option>
+                  <option value="product">Product</option>
+                  <option value="article">Blog</option>
+                  <option value="page">Page</option>
+                  <option value="collection">Collection</option>
+                </select>
+              </div>
+
+              <!-- Event Dropdown -->
+              <div class="Polaris-FormLayout__Item">
+                <select
+                  name="eventId"
+                  id="upload-event"
+                  required
+                  class="Polaris-Select"
+                  style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;"
+                >
+                  <option value="">Select Event</option>
+                </select>
+              </div>
+
+              <!-- File Upload -->
+              <div class="Polaris-FormLayout__Item">
+                <input
+                  type="file"
+                  name="images"
+                  id="upload-gallery-images"
+                  multiple
+                  accept="image/*"
+                  class="Polaris-TextField__Input"
+                  style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;"
+                />
+              </div>
+
+              <!-- Submit Button -->
+              <div class="Polaris-FormLayout__Item">
+                <button
+                  type="submit"
+                  class="Polaris-Button Polaris-Button--primary"
+                  style="background:{{ button_bg_color }}; color:{{ button_text_color }}; padding: 12px 20px; border: none; border-radius: 6px; width: 100%; font-weight: bold; transition: all 0.3s ease;"
+                >
+                  Submit
+                </button>
+              </div>
+
+              <!-- Success/Error Message -->
+              <p id="upload-gallery-message" class="Polaris-Text--success Polaris-Text--center" style="margin-top: 10px;"></p>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ 'app-upload.js' | asset_url | script_tag }}

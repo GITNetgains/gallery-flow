@@ -1,0 +1,389 @@
+{% comment %}
+  Product Gallery Block - Multi-Purpose with Layout Options and Merchant Styling
+{% endcomment %}
+
+<div id="content-gallery-block" style="padding:5px;">
+  <div id="gallery-images" class="gallery-grid" style="
+    margin-top:20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+  ">
+    <div style="width:100%; text-align:center; padding:20px;"><div class="loader"></div></div>
+  </div>
+
+  <div id="gallery-error" style="color:red; margin-top:10px; display:none;"></div>
+</div>
+
+<!-- Swiper CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+<style>
+  .gallery-grid div {
+    width: calc(33% - 10px);
+    min-width: 150px;
+    border-radius: {{ block.settings.border_radius | default: 4 }}px;
+    {% if block.settings.box_shadow %}
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    {% else %}
+    box-shadow: none;
+    {% endif %}
+    padding: 8px;
+    background: #fff;
+  }
+
+  .gallery-grid img,
+  .gallery-carousel img {
+    width: 100%;
+    height: {{ block.settings.image_height | default: '200px' }};
+   object-fit: {{ block.settings.object_fit | default: 'contain' }};
+    border-radius: {{ block.settings.border_radius | default: 4 }}px;
+    transition: transform 0.3s ease;
+  }
+
+  /* Improved Masonry layout */
+  .gallery-masonry {
+    column-count: 3;
+    column-gap: 15px;
+    margin: 0 auto;
+    max-width: 1200px;
+  }
+  
+  .gallery-masonry div {
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 15px;
+    background: #fff;
+    padding: 10px;
+    border-radius: {{ block.settings.border_radius | default: 8 }}px;
+    break-inside: avoid;
+    {% if block.settings.box_shadow %}
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    {% endif %}
+    transition: all 0.3s ease;
+  }
+  
+  .gallery-masonry div:hover {
+    transform: translateY(-5px);
+    {% if block.settings.box_shadow %}
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+    {% endif %}
+  }
+  
+  .gallery-masonry img {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    border-radius: {{ block.settings.border_radius | default: 4 }}px;
+    margin-bottom: 0;
+    display: block;
+  }
+
+.loader {
+  border: 16px solid #f3f3f3; /* Light grey */
+  border-top: 16px solid #3498db; /* Blue */
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  animation: spin 2s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+  /* Responsive masonry columns */
+  @media (max-width: 900px) {
+    .gallery-masonry {
+      column-count: 2;
+    }
+  }
+  @media (max-width: 600px) {
+    .gallery-masonry {
+      column-count: 1;
+    }
+  }
+
+  /* Carousel layout styling */
+  .swiper-container {
+    width: 100%;
+    max-width: 1000px;
+    margin: auto;
+  }
+  .swiper-wrapper {
+    display: flex;
+  }
+  .swiper-slide {
+    text-align: center;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    box-sizing: border-box;
+    {% if block.settings.box_shadow %}
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    {% endif %}
+    border-radius: {{ block.settings.border_radius | default: 4 }}px;
+  }
+  .swiper-slide img {
+    width: 100%;
+    height: {{ block.settings.image_height | default: '200px' }};
+  object-fit: {{ block.settings.object_fit | default: 'contain' }};
+    border-radius: {{ block.settings.border_radius | default: 4 }}px;
+  }
+
+  /* Hover effects for all layouts */
+  .gallery-grid img:hover,
+  .gallery-masonry img:hover,
+  .swiper-slide img:hover {
+    transform: scale(1.02);
+    opacity: 0.9;
+  }
+
+  /* Merchant Custom CSS */
+  {{ block.settings.custom_css }}
+</style>
+
+<script>
+  {% case block.settings.gallery_type %}
+    {% when 'product' %}
+      window.contentId = "{{ product.id }}";
+    {% when 'collection' %}
+      window.contentId = "{{ collection.id }}";
+    {% when 'article' %}
+      window.contentId = "{{ article.id }}";
+    {% when 'page' %}
+      window.contentId = "{{ page.id }}";
+    {% else %}
+      window.contentId = "";
+  {% endcase %}
+  window.contentType = "{{ block.settings.gallery_type | default: 'product' }}";
+  window.galleryLayout = "{{ block.settings.gallery_layout | default: 'grid' }}";
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const galleryDiv = document.getElementById("gallery-images");
+    const errorDiv = document.getElementById("gallery-error");
+
+    // Set gallery layout class and show loader
+    galleryDiv.className = `gallery-${window.galleryLayout}`;
+    galleryDiv.innerHTML = `<div style="width:100%; text-align:center; padding:20px;"><div class="loader"></div></div>`;
+
+    // Ensure loader is visible for at least 500ms
+    const minLoaderTime = 500;
+    const loaderStart = Date.now();
+
+    try {
+      const apiUrl = `https://thin-sir-jersey-use.trycloudflare.com/api/gallery-show?contentId=${window.contentId}&contentType=${window.contentType}`;
+      const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' }, mode: 'cors' });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const data = await response.json();
+
+      if (!data.approved || !data.images?.length) {
+        throw new Error(data.message || "No approved images available");
+      }
+
+      // Wait for minimum loader time to ensure visibility
+      const timeElapsed = Date.now() - loaderStart;
+      if (timeElapsed < minLoaderTime) {
+        await new Promise(resolve => setTimeout(resolve, minLoaderTime - timeElapsed));
+      }
+
+      // Clear loader and render images
+      if (window.galleryLayout === 'carousel') {
+        galleryDiv.innerHTML = `
+          <div class="swiper-container">
+            <div class="swiper-wrapper">
+              ${data.images.map(img => `
+                <div class="swiper-slide">
+                  <img 
+                    src="${img.url.startsWith('/') ? 'https://thin-sir-jersey-use.trycloudflare.com' + img.url : img.url}" 
+                    alt="${img.alt || 'Gallery image'}" 
+                    loading="lazy"
+                  >
+                </div>
+              `).join('')}
+            </div>
+            <div class="swiper-button-next"></div>
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-pagination"></div>
+          </div>
+        `;
+
+        new Swiper('.swiper-container', {
+          loop: true,
+          autoplay: {
+            delay: 3000,
+            disableOnInteraction: false,
+          },
+          spaceBetween: 10,
+          pagination: {
+            el: '.swiper-pagination',
+            clickable: true,
+          },
+          navigation: {
+            nextEl: '.swiper-button-next',
+            prevEl: '.swiper-button-prev',
+          },
+          breakpoints: {
+            320: {
+              slidesPerView: 1,
+              spaceBetween: 10,
+            },
+            768: {
+              slidesPerView: 3,
+              spaceBetween: 10,
+            },
+            1024: {
+              slidesPerView: 4,
+              spaceBetween: 15,
+            }
+          }
+        });
+
+      } else if (window.galleryLayout === 'masonry') {
+        galleryDiv.innerHTML = data.images.map(img => `
+          <div>
+            <img 
+              src="${img.url.startsWith('/') ? 'https://thin-sir-jersey-use.trycloudflare.com' + img.url : img.url}" 
+              alt="${img.alt || 'Gallery image'}" 
+              loading="lazy"
+            >
+          </div>
+        `).join('');
+        
+        // Apply masonry effect after images load
+        const images = galleryDiv.querySelectorAll('img');
+        let loadedCount = 0;
+        
+        images.forEach(img => {
+          img.onload = () => {
+            loadedCount++;
+            if (loadedCount === images.length) {
+              adjustMasonryLayout();
+            }
+          };
+          if (img.complete) {
+            loadedCount++;
+            if (loadedCount === images.length) {
+              adjustMasonryLayout();
+            }
+          }
+        });
+        
+      } else {
+        galleryDiv.innerHTML = data.images.map(img => `
+          <div>
+            <img 
+              src="${img.url.startsWith('/') ? 'https://thin-sir-jersey-use.trycloudflare.com' + img.url : img.url}" 
+              alt="${img.alt || 'Gallery image'}" 
+              loading="lazy"
+            >
+          </div>
+        `).join('');
+      }
+
+    } catch (error) {
+      console.error("Gallery error:", error);
+      // Wait for minimum loader time before showing error
+      const timeElapsed = Date.now() - loaderStart;
+      if (timeElapsed < minLoaderTime) {
+        await new Promise(resolve => setTimeout(resolve, minLoaderTime - timeElapsed));
+      }
+      galleryDiv.style.display = "none";
+      errorDiv.style.display = "block";
+      errorDiv.innerHTML = `
+        Failed to load gallery: ${error.message}
+        <button onclick="window.location.reload()" style="margin-left:10px; padding:5px 10px; background:#f0f0f0; border:1px solid #ccc; border-radius:4px;">Retry</button>
+      `;
+    }
+  });
+  
+  function adjustMasonryLayout() {
+    const gallery = document.querySelector('.gallery-masonry');
+    if (!gallery) return;
+    
+    gallery.style.display = 'block';
+    setTimeout(() => {
+      gallery.style.display = 'block';
+    }, 50);
+  }
+</script>
+
+{% schema %}
+{
+  "name": "Show Gallery",
+  "target": "section",
+  "settings": [
+    {
+      "type": "select",
+      "id": "gallery_type",
+      "label": "Select Content Type",
+      "options": [
+        { "value": "product", "label": "Product" },
+        { "value": "collection", "label": "Collection" },
+        { "value": "article", "label": "Blog Article" },
+        { "value": "page", "label": "Page" }
+      ],
+      "default": "product"
+    },
+    {
+      "type": "select",
+      "id": "gallery_layout",
+      "label": "Gallery Layout",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" },
+        { "value": "masonry", "label": "Masonry" }
+      ],
+      "default": "grid"
+    },
+    {
+  "type": "select",
+  "id": "object_fit",
+  "label": "Image Fit (object-fit)",
+  "options": [
+    { "value": "cover", "label": "Cover" },
+    { "value": "contain", "label": "Contain" }
+  ],
+  "default": "contain"
+},
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border Radius (px)",
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "default": 4
+    },
+    {
+      "type": "checkbox",
+      "id": "box_shadow",
+      "label": "Enable Box Shadow",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "image_height",
+      "label": "Image Height (for grid/carousel)",
+      "default": "200px",
+      "info": "Masonry layout uses natural image heights"
+    },
+    {
+      "type": "textarea",
+      "id": "custom_css",
+      "label": "Custom CSS",
+      "info": "Add any custom CSS here. Use #content-gallery-block as the root selector."
+    }
+  ],
+  "enabled_on": {
+    "templates": ["product", "collection", "article", "page"]
+  }
+}
+{% endschema %}

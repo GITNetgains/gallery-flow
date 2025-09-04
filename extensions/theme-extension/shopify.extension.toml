@@ -1,0 +1,7 @@
+name = "theme-extension"
+type = "theme"
+
+[[extensions]]
+type = "theme_app_extension"
+name = "Upload Gallery"
+handle = "upload-gallery"

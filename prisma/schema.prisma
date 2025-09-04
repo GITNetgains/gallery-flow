@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+}
+
+
+model Setting {
+  id              String  @id @default("global-setting")
+  addEventEnabled Boolean @default(true)
+}
+
+model GalleryUpload {
+  id         String   @id @default(uuid())
+  customerId String
+  name       String
+  email      String
+  eventId    String?
+  itemId      String?  // new: for products, pages, blogs, collections
+  itemType    String?  // new: product | blog | collection | page
+  itemName   String? 
+  event      Event?    @relation(fields: [eventId], references: [id])
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  images     Image[]   
+}
+
+model Image {
+  id        String   @id @default(uuid())
+  url       String
+  galleryId String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  gallery GalleryUpload @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  shopifyId   String? 
+  description String?
+  date        DateTime?
+  createdAt   DateTime @default(now())
+  imageUrl    String?
+  GalleryUpload GalleryUpload[]
+}
