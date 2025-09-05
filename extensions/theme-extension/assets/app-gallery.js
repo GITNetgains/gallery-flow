@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", async function() {
 
   try {
     // Fetch all approved images from your API
-    const res = await fetch("https://thin-sir-jersey-use.trycloudflare.com/api/galleries");
+    const res = await fetch("https://unknown-powered-gardening-projectors.trycloudflare.com/api/galleries");
     const data = await res.json();
 
     const images = data.images || [];
@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     images.forEach((img) => {
       const imageEl = document.createElement("img");
-      imageEl.src = `https://thin-sir-jersey-use.trycloudflare.com${img.url}`;
+      imageEl.src = `https://unknown-powered-gardening-projectors.trycloudflare.com${img.url}`;
       imageEl.alt = `Uploaded image ${img.id}`;
       imageEl.style.width = "100%";
       imageEl.style.borderRadius = "8px";

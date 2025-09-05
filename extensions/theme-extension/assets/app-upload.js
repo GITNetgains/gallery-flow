@@ -43,7 +43,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const formData = new FormData(form);
 
     try {
-      const res = await fetch("https://thin-sir-jersey-use.trycloudflare.com/api/gallery", {
+      const res = await fetch("https://unknown-powered-gardening-projectors.trycloudflare.com/api/gallery", {
         method: "POST",
         body: formData,
       });
@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   async function fetchAllItems() {
     try {
-      const res = await fetch("https://thin-sir-jersey-use.trycloudflare.com/api/gallery");
+      const res = await fetch("https://unknown-powered-gardening-projectors.trycloudflare.com/api/gallery");
       const json = await res.json();
 
       if (!json.success) {

@@ -2,23 +2,30 @@
   "name": "gallery-flow",
   "private": true,
   "scripts": {
-    "build": "remix vite:build",
     "dev": "shopify app dev",
+    "build": "remix vite:build",
+    "start": "remix-serve ./build/server/index.js",
+    "docker-start": "npm run setup && npm run start",
+
+    "setup": "prisma generate && prisma migrate deploy",
+
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "seed": "node prisma/seed.js",
+
+    "prisma": "prisma",
+    "prisma-seed": "node prisma/seed.js",
+
+    "graphql-codegen": "graphql-codegen",
+    "vite": "vite",
+
+    "shopify": "shopify",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",
     "config:use": "shopify app config use",
     "env": "shopify app env",
-    "start": "remix-serve ./build/server/index.js",
-    "docker-start": "npm run setup && npm run start",
-    "setup": "prisma generate && prisma migrate deploy",
-    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
-    "prisma-seed": "node prisma/seed.js",
-    "shopify": "shopify",
-    "prisma": "prisma",
-    "graphql-codegen": "graphql-codegen",
-    "seed": "node prisma/seed.js",
-    "vite": "vite"
+
+    "postinstall": "prisma generate"
   },
   "type": "module",
   "engines": {
@@ -36,7 +43,7 @@
     "@shopify/shopify-app-remix": "^3.7.0",
     "@shopify/shopify-app-session-storage-prisma": "^6.0.0",
     "isbot": "^5.1.0",
-    "prisma": "^6.2.1",
+    "prisma": "^6.13.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "remix-utils": "^7.7.0",
