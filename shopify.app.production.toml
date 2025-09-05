@@ -1,0 +1,34 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "6640b1b2966a05f33380b8fb7f23dfe3"
+name = "Gallery-flow"
+handle = "gallery-flow"
+application_url = "https://gallery-flow-two.vercel.app/"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = false
+include_config_on_deploy = true
+
+[webhooks]
+api_version = "2025-07"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_products,read_customers, unauthenticated_read_customers,unauthenticated_write_customers,read_themes,write_themes"
+
+
+
+[auth]
+redirect_urls = ["https://gallery-flow-two.vercel.app/auth/callback", "https://gallery-flow-two.vercel.app/auth/shopify/callback", "https://gallery-flow-two.vercel.app/api/auth/callback"]
+
+[pos]
+embedded = false

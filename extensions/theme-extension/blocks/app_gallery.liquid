@@ -58,6 +58,11 @@
   {% endif %}
 </style>
 
+<script>
+  window.shopDomain = "{{ shop.permanent_domain }}"; 
+  window.storefrontToken = "{{ shop.metafields.app.storefront_token }}";
+</script>
+
 {{ 'app-gallery.js' | asset_url | script_tag }}
 
 {% schema %}

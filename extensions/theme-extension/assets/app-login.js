@@ -8,23 +8,24 @@ document.addEventListener("DOMContentLoaded", function() {
   const loginError = document.getElementById("login-error");
   const loginSuccess = document.getElementById("login-success");
 
+  // ✅ Values injected from Liquid
+  const shopDomain = window.shopDomain;
+  const storefrontToken = window.storefrontToken;
+
   if (loginModalContainer) {
     document.body.appendChild(loginModalContainer);
   }
 
-  // ✅ Close both container and overlay
   function closeLoginModal() {
     if (loginModalOverlay) loginModalOverlay.style.display = "none";
     if (loginModalContainer) loginModalContainer.style.display = "none";
   }
 
-  // Close button event
   closeModalBtn?.addEventListener("click", closeLoginModal);
 
-  // Login submit event
   loginSubmitBtn?.addEventListener("click", async function() {
-    const email = loginEmailInput.value;
-    const password = loginPasswordInput.value;
+    const email = loginEmailInput.value.trim();
+    const password = loginPasswordInput.value.trim();
 
     loginError.style.display = "none";
     loginSuccess.style.display = "none";
@@ -54,11 +55,11 @@ document.addEventListener("DOMContentLoaded", function() {
     const variables = { input: { email, password } };
 
     try {
-      const res = await fetch('https://netgains28.myshopify.com/api/2025-04/graphql.json', {
-        method: 'POST',
+      const res = await fetch(`https://${shopDomain}/api/2025-04/graphql.json`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Storefront-Access-Token': 'e667bc10b211d8bc9d30c62d919ba267',
+          "Content-Type": "application/json",
+          "X-Shopify-Storefront-Access-Token": storefrontToken,
         },
         body: JSON.stringify({ query, variables }),
       });
@@ -66,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function() {
       const json = await res.json();
       const data = json.data?.customerAccessTokenCreate;
 
-      if (data?.customerUserErrors.length) {
+      if (data?.customerUserErrors?.length) {
         loginError.textContent = data.customerUserErrors[0].message;
         loginError.style.display = "block";
       } else {
@@ -74,15 +75,14 @@ document.addEventListener("DOMContentLoaded", function() {
         localStorage.setItem("customertoken", token);
         loginSuccess.style.display = "block";
 
-        // ✅ Close modal after 1 second on success
         setTimeout(() => {
           closeLoginModal();
-
-          const loginEvent = new CustomEvent("loginSuccess");
+          const loginEvent = new CustomEvent("loginSuccess", { detail: { email } });
           document.dispatchEvent(loginEvent);
         }, 1000);
       }
     } catch (error) {
+      console.error("Login error:", error);
       loginError.textContent = "An error occurred. Please try again.";
       loginError.style.display = "block";
     }
