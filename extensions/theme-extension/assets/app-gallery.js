@@ -1,25 +1,20 @@
 document.addEventListener("DOMContentLoaded", async function() {
   const uploadButton = document.getElementById("upload-gallery-button");
-  const loginModalContainer = document.getElementById("login-modal-container");
   const uploadGalleryModalContainer = document.getElementById("upload-gallery-modal-container");
   const galleriesContainer = document.getElementById("approved-galleries-container");
   const typeFilterContainer = document.getElementById("type-filter-container");
 
-  // Modal open logic
-  // Modal open logic
-if (uploadButton) {
-  uploadButton.addEventListener("click", function() {
-    const token = localStorage.getItem('customertoken');
-    if (token) {
-      // Customer logged in → show upload modal
-      uploadGalleryModalContainer.style.display = "block";
-    } else {
-      // ❌ Instead of custom modal → redirect to Shopify login page
-      window.location.href = "/account/login";
-    }
-  });
-}
-
+  if (uploadButton) {
+    uploadButton.addEventListener("click", function() {
+      if (window.isCustomerLoggedIn) {
+        // ✅ Customer logged in → show upload modal
+        uploadGalleryModalContainer.style.display = "block";
+      } else {
+        // ❌ Customer not logged in → redirect to Shopify login page
+        window.location.href = "/account/login";
+      }
+    });
+  }
 
   try {
     // Fetch all approved images from your API
@@ -28,12 +23,10 @@ if (uploadButton) {
 
     const images = data.images || [];
 
-    // Remove filter container since no filtering needed
     if (typeFilterContainer) {
       typeFilterContainer.style.display = "none";
     }
 
-    // Render all images
     renderImages(images);
 
   } catch (error) {

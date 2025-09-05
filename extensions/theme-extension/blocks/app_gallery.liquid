@@ -57,6 +57,10 @@
     {{ block.settings.custom_css }}
   {% endif %}
 </style>
+<script>
+  window.isCustomerLoggedIn = {% if customer %}true{% else %}false{% endif %};
+</script>
+
 
 {{ 'app-gallery.js' | asset_url | script_tag }}
 
