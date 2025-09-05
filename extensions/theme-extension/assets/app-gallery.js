@@ -1,17 +1,18 @@
 document.addEventListener("DOMContentLoaded", async function() {
   const uploadButton = document.getElementById("upload-gallery-button");
+  const loginModalContainer = document.getElementById("login-modal-container");
   const uploadGalleryModalContainer = document.getElementById("upload-gallery-modal-container");
   const galleriesContainer = document.getElementById("approved-galleries-container");
   const typeFilterContainer = document.getElementById("type-filter-container");
 
+  // Modal open logic
   if (uploadButton) {
     uploadButton.addEventListener("click", function() {
-      if (window.isCustomerLoggedIn) {
-        // ✅ Customer logged in → show upload modal
+      const token = localStorage.getItem('customertoken');
+      if (token) {
         uploadGalleryModalContainer.style.display = "block";
       } else {
-        // ❌ Customer not logged in → redirect to Shopify login page
-        window.location.href = "/account/login";
+        loginModalContainer.style.display = "block";
       }
     });
   }
@@ -23,10 +24,12 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     const images = data.images || [];
 
+    // Remove filter container since no filtering needed
     if (typeFilterContainer) {
       typeFilterContainer.style.display = "none";
     }
 
+    // Render all images
     renderImages(images);
 
   } catch (error) {
