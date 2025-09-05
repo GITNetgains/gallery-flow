@@ -3,7 +3,7 @@
 client_id = "6640b1b2966a05f33380b8fb7f23dfe3"
 name = "Gallery-flow"
 handle = "gallery-flow"
-application_url = "https://unknown-powered-gardening-projectors.trycloudflare.com"
+application_url = "https://insects-persistent-town-sound.trycloudflare.com"
 embedded = true
 
 [build]
@@ -28,7 +28,7 @@ scopes = "write_products,read_customers, unauthenticated_read_customers,unauthen
 
 
 [auth]
-redirect_urls = ["https://unknown-powered-gardening-projectors.trycloudflare.com/auth/callback", "https://unknown-powered-gardening-projectors.trycloudflare.com/auth/shopify/callback", "https://unknown-powered-gardening-projectors.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://insects-persistent-town-sound.trycloudflare.com/auth/callback", "https://insects-persistent-town-sound.trycloudflare.com/auth/shopify/callback", "https://insects-persistent-town-sound.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

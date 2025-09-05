@@ -6,16 +6,20 @@ document.addEventListener("DOMContentLoaded", async function() {
   const typeFilterContainer = document.getElementById("type-filter-container");
 
   // Modal open logic
-  if (uploadButton) {
-    uploadButton.addEventListener("click", function() {
-      const token = localStorage.getItem('customertoken');
-      if (token) {
-        uploadGalleryModalContainer.style.display = "block";
-      } else {
-        loginModalContainer.style.display = "block";
-      }
-    });
-  }
+  // Modal open logic
+if (uploadButton) {
+  uploadButton.addEventListener("click", function() {
+    const token = localStorage.getItem('customertoken');
+    if (token) {
+      // Customer logged in → show upload modal
+      uploadGalleryModalContainer.style.display = "block";
+    } else {
+      // ❌ Instead of custom modal → redirect to Shopify login page
+      window.location.href = "/account/login";
+    }
+  });
+}
+
 
   try {
     // Fetch all approved images from your API
