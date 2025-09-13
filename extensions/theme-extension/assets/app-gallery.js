@@ -1,6 +1,5 @@
 document.addEventListener("DOMContentLoaded", async function() {
   const uploadButton = document.getElementById("upload-gallery-button");
-  const loginModalContainer = document.getElementById("login-modal-container");
   const uploadGalleryModalContainer = document.getElementById("upload-gallery-modal-container");
   const galleriesContainer = document.getElementById("approved-galleries-container");
   const typeFilterContainer = document.getElementById("type-filter-container");
@@ -8,11 +7,13 @@ document.addEventListener("DOMContentLoaded", async function() {
   // Modal open logic
   if (uploadButton) {
     uploadButton.addEventListener("click", function() {
-      const token = localStorage.getItem('customertoken');
-      if (token) {
+      // Check if Shopify says customer is logged in
+      if (window.Shopify && window.Shopify.customer && window.Shopify.customer.id) {
+        // Customer is logged in → open upload modal
         uploadGalleryModalContainer.style.display = "block";
       } else {
-        loginModalContainer.style.display = "block";
+        // Customer is NOT logged in → redirect to login page
+        window.location.href = "/account/login";
       }
     });
   }
