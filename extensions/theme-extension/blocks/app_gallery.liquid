@@ -28,6 +28,22 @@
   </div>
 </div>
 
+{% if customer %}
+  <script>
+    window.customer = {
+      id: {{ customer.id | json }},
+      email: {{ customer.email | json }},
+      first_name: {{ customer.first_name | json }},
+      last_name: {{ customer.last_name | json }}
+    };
+  </script>
+{% else %}
+  <script>
+    window.customer = null;
+  </script>
+{% endif %}
+
+
 <style>
   /* Base Styles */
   #app-gallery {
