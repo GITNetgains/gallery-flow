@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async function() {
   if (uploadButton) {
     uploadButton.addEventListener("click", function() {
       // Check if Shopify says customer is logged in
-      if (window.Shopify && window.Shopify.customer && window.Shopify.customer.id) {
+      if (window && window.customer && window.customer.id) {
         // Customer is logged in → open upload modal
         uploadGalleryModalContainer.style.display = "block";
       } else {
