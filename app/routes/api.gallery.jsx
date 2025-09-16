@@ -1,5 +1,3 @@
-
-
 import { cors } from "remix-utils/cors";
 import { json } from "@remix-run/node";
 import { v4 as uuidv4 } from "uuid";
@@ -8,28 +6,40 @@ import fs from "fs/promises";
 import db from "../db.server";
 import { fetchProducts, fetchBlogs, fetchCollections, fetchPages } from "../shopifyApiUtils";
 
-// ✅ Loader with CORS
+// -----------------------------
+// 🔒 Dynamic CORS Options
+// -----------------------------
+function getCorsOptions(request) {
+  const origin = request.headers.get("Origin");
 
+  if (origin && origin.endsWith(".myshopify.com")) {
+    return {
+      origin, // echo back the requesting Shopify store
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type"],
+    };
+  }
+
+  // Block everything else
+  return {
+    origin: false,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  };
+}
+
+// -----------------------------
+// Loader with CORS
+// -----------------------------
 export const loader = async ({ request }) => {
-
-    if (request.method === "OPTIONS") {
-    return await cors(
-      request,
-      new Response(null, { status: 204 }),
-      {
-        origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
-      }
-    );
+  if (request.method === "OPTIONS") {
+    return await cors(request, new Response(null, { status: 204 }), getCorsOptions(request));
   }
 
   try {
-    // Fetch global setting
     const setting = await db.setting.findUnique({ where: { id: "global-setting" } });
 
     if (!setting.addEventEnabled) {
-      // ✅ If addEvent is disabled, fetch products, blogs, collections, pages
       const [products, blogs, collections, pages] = await Promise.all([
         fetchProducts(),
         fetchBlogs(),
@@ -46,13 +56,8 @@ export const loader = async ({ request }) => {
         pages,
       });
 
-      return await cors(request, response, {
-        origin: "*",
-        methods: ["GET","POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
-      });
+      return await cors(request, response, getCorsOptions(request));
     } else {
-      // ✅ If addEvent is enabled, fetch past events only
       const pastEvents = await db.event.findMany({
         where: {
           date: { lt: new Date() },
@@ -66,47 +71,38 @@ export const loader = async ({ request }) => {
         events: pastEvents,
       });
 
-      return await cors(request, response, {
-        origin: "*",
-        methods: ["GET","POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
-      });
+      return await cors(request, response, getCorsOptions(request));
     }
   } catch (error) {
     console.error("Error in loader:", error);
     return await cors(
       request,
       json({ success: false, error: "Server error" }, { status: 500 }),
-      {
-        origin: "*",
-        methods: ["GET","POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
-      }
+      getCorsOptions(request)
     );
   }
 };
+
+// -----------------------------
+// Helpers
+// -----------------------------
 function determineItemType(shopifyId) {
   if (shopifyId.includes("Product")) return "product";
-  if (shopifyId.includes("Article")) return "article"; // 🔥 added
+  if (shopifyId.includes("Article")) return "article";
   if (shopifyId.includes("Blog")) return "blog";
   if (shopifyId.includes("Collection")) return "collection";
   if (shopifyId.includes("Page")) return "page";
   return "unknown";
 }
 
-
+// -----------------------------
+// Action with CORS
+// -----------------------------
 export const action = async ({ request }) => {
   if (request.method === "OPTIONS") {
-    return await cors(
-      request,
-      new Response(null, { status: 204 }),
-      {
-        origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
-      }
-    );
+    return await cors(request, new Response(null, { status: 204 }), getCorsOptions(request));
   }
+
   const formData = await request.formData();
   const customerId = formData.get("customerId");
   const name = formData.get("name");
@@ -115,9 +111,12 @@ export const action = async ({ request }) => {
   const files = formData.getAll("images");
 
   if (!customerId || !email || !eventId || files.length === 0) {
-    return json({ success: false, error: "Missing required fields or files." }, { status: 400 });
+    return await cors(
+      request,
+      json({ success: false, error: "Missing required fields or files." }, { status: 400 }),
+      getCorsOptions(request)
+    );
   }
-
 
   try {
     let eventRecord = await db.event.findUnique({ where: { id: eventId } });
@@ -131,7 +130,7 @@ export const action = async ({ request }) => {
       eventId: null,
       itemId: null,
       itemType: null,
-      itemName: null, // 🔥 added field
+      itemName: null,
     };
 
     if (eventRecord) {
@@ -139,38 +138,36 @@ export const action = async ({ request }) => {
     } else {
       const type = determineItemType(eventId);
       if (type === "unknown") {
-        return json({ success: false, error: "Invalid item type" }, { status: 400 });
+        return await cors(
+          request,
+          json({ success: false, error: "Invalid item type" }, { status: 400 }),
+          getCorsOptions(request)
+        );
       }
 
       let itemName = "";
 
       if (type === "product") {
         const products = await fetchProducts();
-        const matched = products.find(p => p.id === eventId);
+        const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
-      }
-      else if (type === "article") {
-  const blogs = await fetchBlogs();
-
-  // Flatten all articles with blog context
-  const allArticles = blogs.flatMap(b =>
-    b.articles.map(a => ({
-      ...a,
-      blogTitle: b.title // optional if you want blog context
-    }))
-  );
-
-  const matched = allArticles.find(a => a.id === eventId);
-  itemName = matched?.title || "Article";
-}
-      else if (type === "collection") {
+      } else if (type === "article") {
+        const blogs = await fetchBlogs();
+        const allArticles = blogs.flatMap((b) =>
+          b.articles.map((a) => ({
+            ...a,
+            blogTitle: b.title,
+          }))
+        );
+        const matched = allArticles.find((a) => a.id === eventId);
+        itemName = matched?.title || "Article";
+      } else if (type === "collection") {
         const collections = await fetchCollections();
-        const matched = collections.find(c => c.id === eventId);
+        const matched = collections.find((c) => c.id === eventId);
         itemName = matched?.title || "Collection";
-      }
-      else if (type === "page") {
+      } else if (type === "page") {
         const pages = await fetchPages();
-        const matched = pages.find(pg => pg.id === eventId);
+        const matched = pages.find((pg) => pg.id === eventId);
         itemName = matched?.title || "Page";
       }
 
@@ -203,18 +200,17 @@ export const action = async ({ request }) => {
       });
     }
 
-   return await cors(
+    return await cors(
       request,
       json({ success: true, message: "Your gallery upload is in process." }),
-      {
-        origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
-      }
+      getCorsOptions(request)
     );
-
   } catch (error) {
     console.error("❌ Upload gallery error:", error);
-    return json({ success: false, error: "Server error. Please try again." }, { status: 500 });
+    return await cors(
+      request,
+      json({ success: false, error: "Server error. Please try again." }, { status: 500 }),
+      getCorsOptions(request)
+    );
   }
 };
