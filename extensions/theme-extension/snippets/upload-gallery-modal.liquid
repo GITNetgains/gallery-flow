@@ -126,6 +126,15 @@
 
   let allItems = [];
 
+
+  window.customerData = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }}
+  };
+
+
   if (modalOverlay) {
     document.body.appendChild(modalOverlay);
   }
@@ -140,13 +149,14 @@
 
   // ✅ Button logic (just check window.customerData)
   uploadButton?.addEventListener("click", function () {
-    if (window.customerData?.email) {
-      if (modalOverlay) modalOverlay.style.display = "flex";
-    } else {
+    if (!window.customerData?.email) {
       showToast("⚠️ Please log in to upload images.");
       setTimeout(() => {
         window.location.href = "/account/login";
       }, 1500);
+      
+    } else {
+      if (modalOverlay) modalOverlay.style.display = "flex";
     }
   });
 
