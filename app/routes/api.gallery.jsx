@@ -11,6 +11,19 @@ import { fetchProducts, fetchBlogs, fetchCollections, fetchPages } from "../shop
 // ✅ Loader with CORS
 
 export const loader = async ({ request }) => {
+
+    if (request.method === "OPTIONS") {
+    return await cors(
+      request,
+      new Response(null, { status: 204 }),
+      {
+        origin: "*",
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type"],
+      }
+    );
+  }
+
   try {
     // Fetch global setting
     const setting = await db.setting.findUnique({ where: { id: "global-setting" } });
@@ -35,7 +48,7 @@ export const loader = async ({ request }) => {
 
       return await cors(request, response, {
         origin: "*",
-        methods: ["GET"],
+        methods: ["GET","POST", "OPTIONS"],
         allowedHeaders: ["Content-Type"],
       });
     } else {
@@ -55,7 +68,7 @@ export const loader = async ({ request }) => {
 
       return await cors(request, response, {
         origin: "*",
-        methods: ["GET"],
+        methods: ["GET","POST", "OPTIONS"],
         allowedHeaders: ["Content-Type"],
       });
     }
@@ -66,7 +79,7 @@ export const loader = async ({ request }) => {
       json({ success: false, error: "Server error" }, { status: 500 }),
       {
         origin: "*",
-        methods: ["GET"],
+        methods: ["GET","POST", "OPTIONS"],
         allowedHeaders: ["Content-Type"],
       }
     );
@@ -83,6 +96,17 @@ function determineItemType(shopifyId) {
 
 
 export const action = async ({ request }) => {
+  if (request.method === "OPTIONS") {
+    return await cors(
+      request,
+      new Response(null, { status: 204 }),
+      {
+        origin: "*",
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type"],
+      }
+    );
+  }
   const formData = await request.formData();
   const customerId = formData.get("customerId");
   const name = formData.get("name");
@@ -93,6 +117,7 @@ export const action = async ({ request }) => {
   if (!customerId || !email || !eventId || files.length === 0) {
     return json({ success: false, error: "Missing required fields or files." }, { status: 400 });
   }
+
 
   try {
     let eventRecord = await db.event.findUnique({ where: { id: eventId } });
@@ -178,12 +203,12 @@ export const action = async ({ request }) => {
       });
     }
 
-    return await cors(
+   return await cors(
       request,
       json({ success: true, message: "Your gallery upload is in process." }),
       {
         origin: "*",
-        methods: ["POST"],
+        methods: ["GET", "POST", "OPTIONS"],
         allowedHeaders: ["Content-Type"],
       }
     );
