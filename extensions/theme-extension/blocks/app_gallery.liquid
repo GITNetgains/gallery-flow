@@ -89,10 +89,18 @@
     }, 3000);
   }
 
+  
+  window.customerData = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }}
+  };
+
   if (uploadButton) {
     uploadButton.addEventListener("click", function() {
-      const token = localStorage.getItem('customertoken'); // your auth check
-      if (token) {
+      
+      if (window.customerData?.email) {
         // ✅ Open upload modal if logged in
         uploadGalleryModalContainer.style.display = "block";
       } else {
@@ -147,7 +155,7 @@
 </script>
 
 
-{{ 'app-gallery.js' | asset_url | script_tag }}
+
 
 {% schema %}
 {
