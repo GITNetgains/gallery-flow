@@ -20,10 +20,7 @@ export async function loader({ request }) {
       request,
       json({ images, events }),
       {
-        origin: [
-          "https://netgains28.myshopify.com",
-          "http://localhost:*",
-        ],
+        origin: "*",
         methods: ["GET"],
         allowedHeaders: ["Content-Type"],
         maxAge: 600
