@@ -1,11 +1,9 @@
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
   const modalOverlay = document.getElementById("upload-gallery-modal-overlay");
-  const modalContainer = document.getElementById("upload-gallery-modal-container");
   const closeModalBtn = document.getElementById("close-upload-gallery-modal");
   const uploadButton = document.getElementById("upload-gallery-button");
   const form = document.getElementById("upload-gallery-form");
   const message = document.getElementById("upload-gallery-message");
-  const loginModalContainer = document.getElementById("login-modal-container");
   const typeSelect = document.getElementById("upload-type");
   const eventSelect = document.getElementById("upload-event");
 
@@ -20,22 +18,29 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function closeUploadModal() {
     if (modalOverlay) modalOverlay.style.display = "none";
-    if (modalContainer) modalContainer.style.display = "none";
   }
 
-  uploadButton?.addEventListener("click", function() {
+  // ✅ Button logic
+  uploadButton?.addEventListener("click", function () {
     const token = localStorage.getItem("customertoken");
     if (token) {
-      if (modalContainer) modalContainer.style.display = "block";
-      if (modalOverlay) modalOverlay.style.display = "block";
+      if (modalOverlay) modalOverlay.style.display = "flex";
     } else {
-      if (loginModalContainer) loginModalContainer.style.display = "block";
+      showToast("⚠️ Please log in to upload images.");
+      setTimeout(() => {
+        window.location.href = "/account/login";
+      }, 1500);
     }
   });
 
+  // ✅ Close modal
   closeModalBtn?.addEventListener("click", closeUploadModal);
+  modalOverlay?.addEventListener("click", function (e) {
+    if (e.target === modalOverlay) closeUploadModal();
+  });
 
-  form?.addEventListener("submit", async function(e) {
+  // ✅ Submit form
+  form?.addEventListener("submit", async function (e) {
     e.preventDefault();
     message.textContent = "";
     message.classList.remove("Polaris-Text--success", "Polaris-Text--critical");
@@ -69,27 +74,24 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
+  // ✅ Poll for token and fetch customer info
   async function waitForTokenAndPopulate() {
     let token = localStorage.getItem("customertoken");
     const maxAttempts = 10;
     let attempts = 0;
 
     while (!token && attempts < maxAttempts) {
-      await new Promise(res => setTimeout(res, 500));
+      await new Promise((res) => setTimeout(res, 500));
       token = localStorage.getItem("customertoken");
       attempts++;
     }
 
     if (token) {
-      console.log("Token detected by polling. Populating customer fields.");
-      populateCustomerFieldsFromToken();
-    } else {
-      console.warn("Token not found after polling.");
+      populateCustomerFieldsFromToken(token);
     }
   }
 
-  async function populateCustomerFieldsFromToken() {
-    let token = localStorage.getItem("customertoken");
+  async function populateCustomerFieldsFromToken(token) {
     const query = `
       {
         customer(customerAccessToken: "${token}") {
@@ -118,72 +120,88 @@ document.addEventListener("DOMContentLoaded", function() {
         document.getElementById("upload-customer-id").value = customer.id;
         document.getElementById("upload-customer-name").value = `${customer.firstName} ${customer.lastName}`;
         document.getElementById("upload-customer-email").value = customer.email;
-
-        console.log("✅ Customer fields populated:", customer);
-      } else {
-        console.error("Customer not found or invalid token", json);
       }
     } catch (error) {
       console.error("Error fetching customer details", error);
     }
   }
 
+  // ✅ Fetch events/products/etc
   async function fetchAllItems() {
     try {
       const res = await fetch("https://gallery-flow-two.vercel.app/api/gallery");
       const json = await res.json();
 
-      if (!json.success) {
-        console.error("API failed:", json);
-        return;
-      }
+      if (!json.success) return;
 
       if (json.disabled) {
-        // When button disabled → store all products, blogs, collections, pages
         allItems = [
-          ...json.products.map(p => ({ id: p.id, name: p.title, type: "product" })),
-          ...json.blogs.flatMap(b =>
-            b.articles.map(a => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))
+          ...json.products.map((p) => ({ id: p.id, name: p.title, type: "product" })),
+          ...json.blogs.flatMap((b) =>
+            b.articles.map((a) => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))
           ),
-          ...json.collections.map(c => ({ id: c.id, name: c.title, type: "collection" })),
-          ...json.pages.map(p => ({ id: p.id, name: p.title, type: "page" })),
+          ...json.collections.map((c) => ({ id: c.id, name: c.title, type: "collection" })),
+          ...json.pages.map((p) => ({ id: p.id, name: p.title, type: "page" })),
         ];
       } else {
-        // When button enabled → only events
-        allItems = json.events.map(ev => ({
+        allItems = json.events.map((ev) => ({
           id: ev.id,
           name: ev.name,
           date: ev.date,
           type: ev.type,
         }));
       }
-
-      console.log("✅ Loaded items:", allItems);
     } catch (error) {
       console.error("Error fetching items:", error);
     }
   }
 
-  typeSelect?.addEventListener("change", function() {
+  // ✅ Dropdown logic
+  typeSelect?.addEventListener("change", function () {
     const selectedType = this.value;
-
     if (!selectedType) {
       eventSelect.innerHTML = '<option value="">Select</option>';
       return;
     }
-
-    const filtered = allItems.filter(item => item.type === selectedType);
+    const filtered = allItems.filter((item) => item.type === selectedType);
     populateEventDropdown(filtered);
   });
 
   function populateEventDropdown(items) {
     eventSelect.innerHTML = '<option value="">Select</option>';
-
-    items.forEach(item => {
+    items.forEach((item) => {
       const option = document.createElement("option");
       option.value = item.id;
-      option.textContent = item.name + (item.date ? ` (${new Date(item.date).toLocaleDateString()})` : "");
+      option.textContent =
+        item.name + (item.date ? ` (${new Date(item.date).toLocaleDateString()})` : "");
       eventSelect.appendChild(option);
     });
+  }
+
+  // ✅ Simple toast function
+  function showToast(msg) {
+    const toast = document.createElement("div");
+    toast.textContent = msg;
+    toast.style.position = "fixed";
+    toast.style.bottom = "20px";
+    toast.style.right = "20px";
+    toast.style.background = "#333";
+    toast.style.color = "#fff";
+    toast.style.padding = "10px 16px";
+    toast.style.borderRadius = "6px";
+    toast.style.zIndex = "99999";
+    toast.style.fontSize = "14px";
+    toast.style.opacity = "0";
+    toast.style.transition = "opacity 0.3s ease";
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.style.opacity = "1";
+    });
+
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
   }
 });
