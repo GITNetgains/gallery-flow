@@ -19,28 +19,14 @@
     </div>
 
     <!-- Hidden modals -->
-   
+    <div id="login-modal-container" style="display:none;">
+      {% render 'login-modal', button_bg_color: block.settings.button_bg_color, button_text_color: block.settings.button_text_color %}
+    </div>
     <div id="upload-gallery-modal-container" style="display:none;">
       {% render 'upload-gallery-modal', button_bg_color: block.settings.button_bg_color, button_text_color: block.settings.button_text_color %}
     </div>
   </div>
 </div>
-
-{% if customer %}
-  <script>
-    window.customer = {
-      id: {{ customer.id | json }},
-      email: {{ customer.email | json }},
-      first_name: {{ customer.first_name | json }},
-      last_name: {{ customer.last_name | json }}
-    };
-  </script>
-{% else %}
-  <script>
-    window.customer = null;
-  </script>
-{% endif %}
-
 
 <style>
   /* Base Styles */
@@ -71,6 +57,95 @@
     {{ block.settings.custom_css }}
   {% endif %}
 </style>
+
+<script>
+  const uploadButton = document.getElementById("upload-gallery-button");
+  const uploadGalleryModalContainer = document.getElementById("upload-gallery-modal-container");
+
+  // ✅ Create a toast container (only once)
+  function showToast(message) {
+    let toast = document.getElementById("custom-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "custom-toast";
+      toast.style.position = "fixed";
+      toast.style.bottom = "20px";
+      toast.style.right = "20px";
+      toast.style.padding = "12px 18px";
+      toast.style.background = "rgba(0,0,0,0.8)";
+      toast.style.color = "#fff";
+      toast.style.fontSize = "14px";
+      toast.style.borderRadius = "6px";
+      toast.style.zIndex = "9999";
+      toast.style.opacity = "0";
+      toast.style.transition = "opacity 0.4s ease";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = "1";
+
+    setTimeout(() => {
+      toast.style.opacity = "0";
+    }, 3000);
+  }
+
+  if (uploadButton) {
+    uploadButton.addEventListener("click", function() {
+      const token = localStorage.getItem('customertoken'); // your auth check
+      if (token) {
+        // ✅ Open upload modal if logged in
+        uploadGalleryModalContainer.style.display = "block";
+      } else {
+        // ❌ Not logged in → show toast + redirect to login page
+        showToast("Please log in to upload images.");
+        setTimeout(() => {
+          window.location.href = "/account/login"; // Shopify login page
+        }, 1500);
+      }
+    });
+  }
+
+  // --- Keep your fetch + render logic ---
+  async function fetchImages() {
+    try {
+      const res = await fetch("https://gallery-flow-two.vercel.app/api/galleries");
+      const data = await res.json();
+      const images = data.images || [];
+      renderImages(images);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      if (galleriesContainer) {
+        galleriesContainer.innerHTML = "<p>Error loading images.</p>";
+      }
+    }
+  }
+
+  function renderImages(images) {
+    const galleriesContainer = document.getElementById("approved-galleries-container");
+    if (!galleriesContainer) return;
+
+    galleriesContainer.innerHTML = "";
+    if (images.length === 0) {
+      galleriesContainer.innerHTML = "<p>No approved images found.</p>";
+      return;
+    }
+
+    images.forEach((img) => {
+      const imageEl = document.createElement("img");
+      imageEl.src = `https://gallery-flow-two.vercel.app${img.url}`;
+      imageEl.alt = `Uploaded image ${img.id}`;
+      imageEl.style.width = "100%";
+      imageEl.style.borderRadius = "8px";
+      imageEl.style.boxShadow = "0 1px 3px rgba(0,0,0,0.2)";
+      imageEl.style.maxWidth = "300px";
+      imageEl.style.minWidth = "250px";
+      galleriesContainer.appendChild(imageEl);
+    });
+  }
+
+  fetchImages();
+</script>
+
 
 {{ 'app-gallery.js' | asset_url | script_tag }}
 
