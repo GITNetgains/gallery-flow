@@ -1,10 +1,23 @@
 import { cors } from "remix-utils/cors";
 import { json } from "@remix-run/node";
 import { v4 as uuidv4 } from "uuid";
-import path from "path";
-import fs from "fs/promises";
 import db from "../db.server";
-import { fetchProducts, fetchBlogs, fetchCollections, fetchPages } from "../shopifyApiUtils";
+import {
+  fetchProducts,
+  fetchBlogs,
+  fetchCollections,
+  fetchPages,
+} from "../shopifyApiUtils";
+import cloudinary from "cloudinary";
+
+// -----------------------------
+// Cloudinary Config
+// -----------------------------
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // -----------------------------
 // 🔒 Dynamic CORS Options
@@ -33,11 +46,17 @@ function getCorsOptions(request) {
 // -----------------------------
 export const loader = async ({ request }) => {
   if (request.method === "OPTIONS") {
-    return await cors(request, new Response(null, { status: 204 }), getCorsOptions(request));
+    return await cors(
+      request,
+      new Response(null, { status: 204 }),
+      getCorsOptions(request)
+    );
   }
 
   try {
-    const setting = await db.setting.findUnique({ where: { id: "global-setting" } });
+    const setting = await db.setting.findUnique({
+      where: { id: "global-setting" },
+    });
 
     if (!setting.addEventEnabled) {
       const [products, blogs, collections, pages] = await Promise.all([
@@ -96,11 +115,15 @@ function determineItemType(shopifyId) {
 }
 
 // -----------------------------
-// Action with CORS
+// Action with Cloudinary Upload
 // -----------------------------
 export const action = async ({ request }) => {
   if (request.method === "OPTIONS") {
-    return await cors(request, new Response(null, { status: 204 }), getCorsOptions(request));
+    return await cors(
+      request,
+      new Response(null, { status: 204 }),
+      getCorsOptions(request)
+    );
   }
 
   const formData = await request.formData();
@@ -113,7 +136,10 @@ export const action = async ({ request }) => {
   if (!customerId || !email || !eventId || files.length === 0) {
     return await cors(
       request,
-      json({ success: false, error: "Missing required fields or files." }, { status: 400 }),
+      json(
+        { success: false, error: "Missing required fields or files." },
+        { status: 400 }
+      ),
       getCorsOptions(request)
     );
   }
@@ -154,10 +180,7 @@ export const action = async ({ request }) => {
       } else if (type === "article") {
         const blogs = await fetchBlogs();
         const allArticles = blogs.flatMap((b) =>
-          b.articles.map((a) => ({
-            ...a,
-            blogTitle: b.title,
-          }))
+          b.articles.map((a) => ({ ...a, blogTitle: b.title }))
         );
         const matched = allArticles.find((a) => a.id === eventId);
         itemName = matched?.title || "Article";
@@ -180,21 +203,22 @@ export const action = async ({ request }) => {
 
     const newGallery = await db.galleryUpload.create({ data: galleryData });
 
+    // 🔥 Upload each image to Cloudinary
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-      const fileName = `${Date.now()}-${file.name}`;
-      const uploadDir = path.join(process.cwd(), "public", "uploads");
 
-      await fs.mkdir(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, fileName);
-      await fs.writeFile(filePath, buffer);
+      // Convert buffer → base64 → upload
+      const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-      const imageUrl = `/uploads/${fileName}`;
+      const uploadRes = await cloudinary.v2.uploader.upload(base64, {
+        folder: "shopify-gallery", // 👈 optional folder
+        public_id: `${Date.now()}-${file.name}`,
+      });
 
       await db.image.create({
         data: {
           id: uuidv4(),
-          url: imageUrl,
+          url: uploadRes.secure_url, // ✅ Cloudinary URL
           galleryId: newGallery.id,
         },
       });
@@ -209,7 +233,10 @@ export const action = async ({ request }) => {
     console.error("❌ Upload gallery error:", error);
     return await cors(
       request,
-      json({ success: false, error: "Server error. Please try again." }, { status: 500 }),
+      json(
+        { success: false, error: "Server error. Please try again." },
+        { status: 500 }
+      ),
       getCorsOptions(request)
     );
   }
