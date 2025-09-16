@@ -9,7 +9,7 @@ import {
   fetchPages,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
-import { sessionStorage } from "../session.server"; // ✅ import session
+import { sessionStorage } from "../shopify.server"; // ✅ import session
 
 // -----------------------------
 // Cloudinary Config
