@@ -9,6 +9,7 @@ import {
   fetchPages,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
+import { sessionStorage } from "../session.server"; // ✅ import session
 
 // -----------------------------
 // Cloudinary Config
@@ -54,16 +55,29 @@ export const loader = async ({ request }) => {
   }
 
   try {
+    // ✅ get shop + token from session
+    const session = await sessionStorage.getSession(request.headers.get("Cookie"));
+    const shop = session.get("shop");
+    const accessToken = session.get("accessToken");
+
+    if (!shop || !accessToken) {
+      return await cors(
+        request,
+        json({ success: false, error: "Unauthorized" }, { status: 401 }),
+        getCorsOptions(request)
+      );
+    }
+
     const setting = await db.setting.findUnique({
       where: { id: "global-setting" },
     });
 
     if (!setting.addEventEnabled) {
       const [products, blogs, collections, pages] = await Promise.all([
-        fetchProducts(),
-        fetchBlogs(),
-        fetchCollections(),
-        fetchPages(),
+        fetchProducts(shop, accessToken),   // ✅ pass shop + token
+        fetchBlogs(shop, accessToken),
+        fetchCollections(shop, accessToken),
+        fetchPages(shop, accessToken),
       ]);
 
       const response = json({
@@ -126,6 +140,19 @@ export const action = async ({ request }) => {
     );
   }
 
+  // ✅ session
+  const session = await sessionStorage.getSession(request.headers.get("Cookie"));
+  const shop = session.get("shop");
+  const accessToken = session.get("accessToken");
+
+  if (!shop || !accessToken) {
+    return await cors(
+      request,
+      json({ success: false, error: "Unauthorized: missing shop or token" }, { status: 401 }),
+      getCorsOptions(request)
+    );
+  }
+
   const formData = await request.formData();
   const customerId = formData.get("customerId");
   const name = formData.get("name");
@@ -174,22 +201,22 @@ export const action = async ({ request }) => {
       let itemName = "";
 
       if (type === "product") {
-        const products = await fetchProducts();
+        const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
       } else if (type === "article") {
-        const blogs = await fetchBlogs();
+        const blogs = await fetchBlogs(shop, accessToken);
         const allArticles = blogs.flatMap((b) =>
           b.articles.map((a) => ({ ...a, blogTitle: b.title }))
         );
         const matched = allArticles.find((a) => a.id === eventId);
         itemName = matched?.title || "Article";
       } else if (type === "collection") {
-        const collections = await fetchCollections();
+        const collections = await fetchCollections(shop, accessToken);
         const matched = collections.find((c) => c.id === eventId);
         itemName = matched?.title || "Collection";
       } else if (type === "page") {
-        const pages = await fetchPages();
+        const pages = await fetchPages(shop, accessToken);
         const matched = pages.find((pg) => pg.id === eventId);
         itemName = matched?.title || "Page";
       }
@@ -206,19 +233,17 @@ export const action = async ({ request }) => {
     // 🔥 Upload each image to Cloudinary
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-
-      // Convert buffer → base64 → upload
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
       const uploadRes = await cloudinary.v2.uploader.upload(base64, {
-        folder: "shopify-gallery", // 👈 optional folder
+        folder: "shopify-gallery",
         public_id: `${Date.now()}-${file.name}`,
       });
 
       await db.image.create({
         data: {
           id: uuidv4(),
-          url: uploadRes.secure_url, // ✅ Cloudinary URL
+          url: uploadRes.secure_url,
           galleryId: newGallery.id,
         },
       });

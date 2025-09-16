@@ -1,13 +1,18 @@
-async function paginateQuery(query, extractFn) {
+// shopifyApiUtils.js
+
+// -----------------------------
+// Pagination Helper
+// -----------------------------
+async function paginateQuery(shop, accessToken, query, extractFn) {
   let hasNextPage = true;
   let endCursor = null;
   let allItems = [];
 
   while (hasNextPage) {
-    const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+    const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
       method: "POST",
       headers: {
-        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+        "X-Shopify-Access-Token": accessToken,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -19,7 +24,7 @@ async function paginateQuery(query, extractFn) {
     const json = await res.json();
 
     if (!res.ok || json.errors) {
-      console.error("Shopify API error:", json.errors || await res.text());
+      console.error("Shopify API error:", json.errors || (await res.text()));
       throw new Error("Failed to fetch data from Shopify");
     }
 
@@ -33,21 +38,20 @@ async function paginateQuery(query, extractFn) {
   return allItems;
 }
 
-export async function fetchProducts() {
+// -----------------------------
+// Multi-store Fetchers
+// -----------------------------
+export async function fetchProducts(shop, accessToken) {
   return await paginateQuery(
+    shop,
+    accessToken,
     `
       query($after: String) {
         products(first: 100, after: $after) {
           edges {
-            node {
-              id
-              title
-            }
+            node { id title }
           }
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
+          pageInfo { hasNextPage endCursor }
         }
       }
     `,
@@ -61,21 +65,17 @@ export async function fetchProducts() {
   );
 }
 
-export async function fetchCollections() {
+export async function fetchCollections(shop, accessToken) {
   return await paginateQuery(
+    shop,
+    accessToken,
     `
       query($after: String) {
         collections(first: 100, after: $after) {
           edges {
-            node {
-              id
-              title
-            }
+            node { id title }
           }
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
+          pageInfo { hasNextPage endCursor }
         }
       }
     `,
@@ -89,8 +89,10 @@ export async function fetchCollections() {
   );
 }
 
-export async function fetchBlogs() {
+export async function fetchBlogs(shop, accessToken) {
   return await paginateQuery(
+    shop,
+    accessToken,
     `
       query($after: String) {
         blogs(first: 50, after: $after) {
@@ -99,19 +101,11 @@ export async function fetchBlogs() {
               id
               title
               articles(first: 100) {
-                edges {
-                  node {
-                    id
-                    title
-                  }
-                }
+                edges { node { id title } }
               }
             }
           }
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
+          pageInfo { hasNextPage endCursor }
         }
       }
     `,
@@ -129,21 +123,17 @@ export async function fetchBlogs() {
   );
 }
 
-export async function fetchPages() {
+export async function fetchPages(shop, accessToken) {
   return await paginateQuery(
+    shop,
+    accessToken,
     `
       query($after: String) {
         pages(first: 100, after: $after) {
           edges {
-            node {
-              id
-              title
-            }
+            node { id title }
           }
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
+          pageInfo { hasNextPage endCursor }
         }
       }
     `,
@@ -157,13 +147,14 @@ export async function fetchPages() {
   );
 }
 
-// Single fetchers remain the same:
-
-export async function fetchSingleProduct(productId) {
-  const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+// -----------------------------
+// Single Item Fetchers
+// -----------------------------
+export async function fetchSingleProduct(shop, accessToken, productId) {
+  const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
     method: "POST",
     headers: {
-      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -186,11 +177,11 @@ export async function fetchSingleProduct(productId) {
   };
 }
 
-export async function fetchSingleCollection(collectionId) {
-  const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+export async function fetchSingleCollection(shop, accessToken, collectionId) {
+  const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
     method: "POST",
     headers: {
-      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -213,11 +204,11 @@ export async function fetchSingleCollection(collectionId) {
   };
 }
 
-export async function fetchSinglePage(pageId) {
-  const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+export async function fetchSinglePage(shop, accessToken, pageId) {
+  const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
     method: "POST",
     headers: {
-      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
