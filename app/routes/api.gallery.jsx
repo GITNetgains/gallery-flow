@@ -7,9 +7,6 @@ import {
   fetchBlogs,
   fetchCollections,
   fetchPages,
-  fetchSingleProduct,
-  fetchSingleCollection,
-  fetchSinglePage,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
 import { authenticate } from "../shopify.server"; // ✅ make sure you import your authenticate util
@@ -203,6 +200,28 @@ export const action = async ({ request }) => {
     const session = await getSession(request);
     const shop = session.shop;
     const accessToken = session.accessToken;
+
+    // 🔒 Check global setting before allowing uploads
+    const setting = await db.setting.findUnique({
+      where: { shop },
+    });
+
+    if (!setting) {
+      return await cors(
+        request,
+        json({ success: false, error: "Global setting not found" }, { status: 500 }),
+        getCorsOptions(request)
+      );
+    }
+
+    if (!setting.addEventEnabled) {
+      return await cors(
+        request,
+        json({ success: false, error: "Uploads are disabled for this store." }, { status: 403 }),
+        getCorsOptions(request)
+      );
+    }
+
     const formData = await request.formData();
     const customerId = formData.get("customerId");
     const name = formData.get("name");
