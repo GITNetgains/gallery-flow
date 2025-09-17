@@ -58,12 +58,42 @@ export const loader = async ({ request }) => {
       where: { id: "global-setting" },
     });
 
+       let session;
+    try {
+      const authResult = await authenticate.admin(request);
+      session = authResult.session;
+      console.log(
+        `[${new Date().toISOString()}] Authentication successful for shop: ${session.shop}`
+      );
+    } catch (authError) {
+      console.error(
+        `[${new Date().toISOString()}] Authentication failed, trying DB fallback: ${authError.message}`
+      );
+
+      if (!shopFromBody) throw new Error("No shop param provided in body for DB fallback");
+
+      const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
+      if (!sessionRecord) throw new Error("No DB session found");
+
+      session = {
+        shop: sessionRecord.shop,
+        accessToken: sessionRecord.accessToken,
+        scope: sessionRecord.scope,
+      };
+    }
+
+    // Prefer session.shop, fallback to body.shop
+    const shop = session?.shop || shopFromBody;
+    const accessToken = session?.accessToken;
+    if (!shop) throw new Error("No shop param provided (missing in session and body)");
+    if (!accessToken) throw new Error("Missing access token for shop");
+
     if (!setting.addEventEnabled) {
       const [products, blogs, collections, pages] = await Promise.all([
-        fetchProducts(),
-        fetchBlogs(),
-        fetchCollections(),
-        fetchPages(),
+        fetchProducts(shop,accessToken),
+        fetchBlogs(shop,accessToken),
+        fetchCollections(shop,accessToken),
+        fetchPages(shop,accessToken),
       ]);
 
       const response = json({
@@ -174,22 +204,22 @@ export const action = async ({ request }) => {
       let itemName = "";
 
       if (type === "product") {
-        const products = await fetchProducts();
+        const products = await fetchProducts(shop,accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
       } else if (type === "article") {
-        const blogs = await fetchBlogs();
+        const blogs = await fetchBlogs(shop,accessToken);
         const allArticles = blogs.flatMap((b) =>
           b.articles.map((a) => ({ ...a, blogTitle: b.title }))
         );
         const matched = allArticles.find((a) => a.id === eventId);
         itemName = matched?.title || "Article";
       } else if (type === "collection") {
-        const collections = await fetchCollections();
+        const collections = await fetchCollections(shop,accessToken);
         const matched = collections.find((c) => c.id === eventId);
         itemName = matched?.title || "Collection";
       } else if (type === "page") {
-        const pages = await fetchPages();
+        const pages = await fetchPages(shop,accessToken);
         const matched = pages.find((pg) => pg.id === eventId);
         itemName = matched?.title || "Page";
       }
