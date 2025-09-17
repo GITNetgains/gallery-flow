@@ -9,8 +9,6 @@ import {
   fetchPages,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
-import { access } from "fs";
-import { authenticate } from "../shopify.server";
 
 // -----------------------------
 // Cloudinary Config
@@ -60,26 +58,12 @@ export const loader = async ({ request }) => {
       where: { id: "global-setting" },
     });
 
-     const { session, admin } = await authenticate.admin(request);
-
-  if (!session) {
-    return json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  const shop = session.shop;
-  const accessToken = session.accessToken;
-  console.log("shop",shop,accessToken)
-
-  // Now you can use shop + accessToken
-  console.log("✅ Authenticated shop:", shop);
-  console.log("✅ Access token:", accessToken);
-
     if (!setting.addEventEnabled) {
       const [products, blogs, collections, pages] = await Promise.all([
-        fetchProducts(shop,accessToken),
-        fetchBlogs(shop,accessToken),
-        fetchCollections(shop,accessToken),
-        fetchPages(shop,accessToken),
+        fetchProducts(),
+        fetchBlogs(),
+        fetchCollections(),
+        fetchPages(),
       ]);
 
       const response = json({
@@ -140,19 +124,8 @@ export const action = async ({ request }) => {
       new Response(null, { status: 204 }),
       getCorsOptions(request)
     );
-  } const { session, admin } = await authenticate.admin(request);
-
-  if (!session) {
-    return json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const shop = session.shop;
-  const accessToken = session.accessToken;
-
-  // Now you can use shop + accessToken
-  console.log("✅ Authenticated shop:", shop);
-  console.log("✅ Access token:", accessToken);
-  
   const formData = await request.formData();
   const customerId = formData.get("customerId");
   const name = formData.get("name");
@@ -201,22 +174,22 @@ export const action = async ({ request }) => {
       let itemName = "";
 
       if (type === "product") {
-        const products = await fetchProducts(shop,accessToken);
+        const products = await fetchProducts();
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
       } else if (type === "article") {
-        const blogs = await fetchBlogs(shop,accessToken);
+        const blogs = await fetchBlogs();
         const allArticles = blogs.flatMap((b) =>
           b.articles.map((a) => ({ ...a, blogTitle: b.title }))
         );
         const matched = allArticles.find((a) => a.id === eventId);
         itemName = matched?.title || "Article";
       } else if (type === "collection") {
-        const collections = await fetchCollections(shop,accessToken);
+        const collections = await fetchCollections();
         const matched = collections.find((c) => c.id === eventId);
         itemName = matched?.title || "Collection";
       } else if (type === "page") {
-        const pages = await fetchPages(shop,accessToken);
+        const pages = await fetchPages();
         const matched = pages.find((pg) => pg.id === eventId);
         itemName = matched?.title || "Page";
       }

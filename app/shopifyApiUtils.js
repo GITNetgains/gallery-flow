@@ -1,315 +1,241 @@
-// shopifyApiUtils.js
-
-// -----------------------------
-// Pagination Helper
-// -----------------------------
-async function paginateQuery(shop, accessToken, query, extractFn) {
+async function paginateQuery(query, extractFn) {
   let hasNextPage = true;
   let endCursor = null;
   let allItems = [];
 
   while (hasNextPage) {
-    try {
-      const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
-        method: "POST",
-        headers: {
-          "X-Shopify-Access-Token": accessToken,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          variables: { after: endCursor },
-        }),
-      });
+    const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables: { after: endCursor },
+      }),
+    });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error(`Shopify API Error (Response not OK): ${errorText}`);
-        throw new Error(`Failed to fetch data from Shopify. Status: ${res.status}`);
-      }
+    const json = await res.json();
 
-      const json = await res.json();
-      
-      if (json.errors) {
-        console.error("Shopify API error:", json.errors);
-        throw new Error(`Shopify API error: ${JSON.stringify(json.errors)}`);
-      }
-
-      const { items, pageInfo } = extractFn(json);
-      allItems = allItems.concat(items);
-
-      hasNextPage = pageInfo.hasNextPage;
-      endCursor = pageInfo.endCursor;
-      
-    } catch (error) {
-      console.error(`Error occurred while paginating data from Shopify: ${error.message}`);
-      throw error; // rethrow to be handled by the calling function
+    if (!res.ok || json.errors) {
+      console.error("Shopify API error:", json.errors || await res.text());
+      throw new Error("Failed to fetch data from Shopify");
     }
+
+    const { items, pageInfo } = extractFn(json);
+    allItems = allItems.concat(items);
+
+    hasNextPage = pageInfo.hasNextPage;
+    endCursor = pageInfo.endCursor;
   }
 
   return allItems;
 }
 
-// -----------------------------
-// Multi-store Fetchers
-// -----------------------------
-export async function fetchProducts(shop, accessToken) {
-  try {
-    return await paginateQuery(
-      shop,
-      accessToken,
-      `
-        query($after: String) {
-          products(first: 100, after: $after) {
-            edges {
-              node { id title }
+export async function fetchProducts() {
+  return await paginateQuery(
+    `
+      query($after: String) {
+        products(first: 100, after: $after) {
+          edges {
+            node {
+              id
+              title
             }
-            pageInfo { hasNextPage endCursor }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
-      `,
-      (json) => ({
-        items: json.data.products.edges.map(edge => ({
-          id: edge.node.id,
-          title: edge.node.title,
-        })),
-        pageInfo: json.data.products.pageInfo,
-      })
-    );
-  } catch (error) {
-    console.error(`Failed to fetch products for shop ${shop}: ${error.message}`);
-    throw error;  // rethrow the error to be handled elsewhere if necessary
-  }
+      }
+    `,
+    (json) => ({
+      items: json.data.products.edges.map(edge => ({
+        id: edge.node.id,
+        title: edge.node.title,
+      })),
+      pageInfo: json.data.products.pageInfo,
+    })
+  );
 }
 
-export async function fetchCollections(shop, accessToken) {
-  try {
-    return await paginateQuery(
-      shop,
-      accessToken,
-      `
-        query($after: String) {
-          collections(first: 100, after: $after) {
-            edges {
-              node { id title }
+export async function fetchCollections() {
+  return await paginateQuery(
+    `
+      query($after: String) {
+        collections(first: 100, after: $after) {
+          edges {
+            node {
+              id
+              title
             }
-            pageInfo { hasNextPage endCursor }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
-      `,
-      (json) => ({
-        items: json.data.collections.edges.map(edge => ({
-          id: edge.node.id,
-          title: edge.node.title,
-        })),
-        pageInfo: json.data.collections.pageInfo,
-      })
-    );
-  } catch (error) {
-    console.error(`Failed to fetch collections for shop ${shop}: ${error.message}`);
-    throw error;  // rethrow the error to be handled elsewhere if necessary
-  }
+      }
+    `,
+    (json) => ({
+      items: json.data.collections.edges.map(edge => ({
+        id: edge.node.id,
+        title: edge.node.title,
+      })),
+      pageInfo: json.data.collections.pageInfo,
+    })
+  );
 }
 
-export async function fetchBlogs(shop, accessToken) {
-  try {
-    return await paginateQuery(
-      shop,
-      accessToken,
-      `
-        query($after: String) {
-          blogs(first: 50, after: $after) {
-            edges {
-              node {
-                id
-                title
-                articles(first: 100) {
-                  edges { node { id title } }
+export async function fetchBlogs() {
+  return await paginateQuery(
+    `
+      query($after: String) {
+        blogs(first: 50, after: $after) {
+          edges {
+            node {
+              id
+              title
+              articles(first: 100) {
+                edges {
+                  node {
+                    id
+                    title
+                  }
                 }
               }
             }
-            pageInfo { hasNextPage endCursor }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `,
+    (json) => ({
+      items: json.data.blogs.edges.map(edge => ({
+        id: edge.node.id,
+        title: edge.node.title,
+        articles: edge.node.articles.edges.map(articleEdge => ({
+          id: articleEdge.node.id,
+          title: articleEdge.node.title,
+        })),
+      })),
+      pageInfo: json.data.blogs.pageInfo,
+    })
+  );
+}
+
+export async function fetchPages() {
+  return await paginateQuery(
+    `
+      query($after: String) {
+        pages(first: 100, after: $after) {
+          edges {
+            node {
+              id
+              title
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `,
+    (json) => ({
+      items: json.data.pages.edges.map(edge => ({
+        id: edge.node.id,
+        title: edge.node.title,
+      })),
+      pageInfo: json.data.pages.pageInfo,
+    })
+  );
+}
+
+// Single fetchers remain the same:
+
+export async function fetchSingleProduct(productId) {
+  const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `
+        query ($id: ID!) {
+          product(id: $id) {
+            id
+            title
           }
         }
       `,
-      (json) => ({
-        items: json.data.blogs.edges.map(edge => ({
-          id: edge.node.id,
-          title: edge.node.title,
-          articles: edge.node.articles.edges.map(articleEdge => ({
-            id: articleEdge.node.id,
-            title: articleEdge.node.title,
-          })),
-        })),
-        pageInfo: json.data.blogs.pageInfo,
-      })
-    );
-  } catch (error) {
-    console.error(`Failed to fetch blogs for shop ${shop}: ${error.message}`);
-    throw error;
-  }
+      variables: { id: productId },
+    }),
+  });
+
+  const data = await res.json();
+  return {
+    id: data.data.product.id,
+    title: data.data.product.title,
+  };
 }
 
-export async function fetchPages(shop, accessToken) {
-  try {
-    return await paginateQuery(
-      shop,
-      accessToken,
-      `
-        query($after: String) {
-          pages(first: 100, after: $after) {
-            edges {
-              node { id title }
-            }
-            pageInfo { hasNextPage endCursor }
+export async function fetchSingleCollection(collectionId) {
+  const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `
+        query($id: ID!) {
+          collection(id: $id) {
+            id
+            title
           }
         }
       `,
-      (json) => ({
-        items: json.data.pages.edges.map(edge => ({
-          id: edge.node.id,
-          title: edge.node.title,
-        })),
-        pageInfo: json.data.pages.pageInfo,
-      })
-    );
-  } catch (error) {
-    console.error(`Failed to fetch pages for shop ${shop}: ${error.message}`);
-    throw error;
-  }
+      variables: { id: collectionId },
+    }),
+  });
+
+  const data = await res.json();
+  return {
+    id: data.data.collection.id,
+    title: data.data.collection.title,
+  };
 }
 
-// -----------------------------
-// Single Item Fetchers
-// -----------------------------
-export async function fetchSingleProduct(shop, accessToken, productId) {
-  try {
-    const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
-      method: "POST",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `
-          query ($id: ID!) {
-            product(id: $id) {
-              id
-              title
-            }
+export async function fetchSinglePage(pageId) {
+  const res = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-04/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `
+        query($id: ID!) {
+          page(id: $id) {
+            id
+            title
           }
-        `,
-        variables: { id: productId },
-      }),
-    });
+        }
+      `,
+      variables: { id: pageId },
+    }),
+  });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Error fetching product ${productId}: ${errorText}`);
-      throw new Error(`Failed to fetch product: ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    if (data.errors) {
-      console.error(`Shopify API error for product ${productId}: ${JSON.stringify(data.errors)}`);
-      throw new Error(`Error fetching product ${productId}`);
-    }
-
-    return {
-      id: data.data.product.id,
-      title: data.data.product.title,
-    };
-  } catch (error) {
-    console.error(`Failed to fetch single product for shop ${shop}: ${error.message}`);
-    throw error;
-  }
-}
-
-export async function fetchSingleCollection(shop, accessToken, collectionId) {
-  try {
-    const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
-      method: "POST",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `
-          query($id: ID!) {
-            collection(id: $id) {
-              id
-              title
-            }
-          }
-        `,
-        variables: { id: collectionId },
-      }),
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Error fetching collection ${collectionId}: ${errorText}`);
-      throw new Error(`Failed to fetch collection: ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    if (data.errors) {
-      console.error(`Shopify API error for collection ${collectionId}: ${JSON.stringify(data.errors)}`);
-      throw new Error(`Error fetching collection ${collectionId}`);
-    }
-
-    return {
-      id: data.data.collection.id,
-      title: data.data.collection.title,
-    };
-  } catch (error) {
-    console.error(`Failed to fetch single collection for shop ${shop}: ${error.message}`);
-    throw error;
-  }
-}
-
-export async function fetchSinglePage(shop, accessToken, pageId) {
-  try {
-    const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
-      method: "POST",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `
-          query($id: ID!) {
-            page(id: $id) {
-              id
-              title
-            }
-          }
-        `,
-        variables: { id: pageId },
-      }),
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Error fetching page ${pageId}: ${errorText}`);
-      throw new Error(`Failed to fetch page: ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    if (data.errors) {
-      console.error(`Shopify API error for page ${pageId}: ${JSON.stringify(data.errors)}`);
-      throw new Error(`Error fetching page ${pageId}`);
-    }
-
-    return {
-      id: data.data.page.id,
-      title: data.data.page.title,
-    };
-  } catch (error) {
-    console.error(`Failed to fetch single page for shop ${shop}: ${error.message}`);
-    throw error;
-  }
+  const data = await res.json();
+  return {
+    id: data.data.page.id,
+    title: data.data.page.title,
+  };
 }
