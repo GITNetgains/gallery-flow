@@ -156,6 +156,36 @@ export const action = async ({ request }) => {
     );
   }
 
+     let session;
+    try {
+      const authResult = await authenticate.admin(request);
+      session = authResult.session;
+      console.log(
+        `[${new Date().toISOString()}] Authentication successful for shop: ${session.shop}`
+      );
+    } catch (authError) {
+      console.error(
+        `[${new Date().toISOString()}] Authentication failed, trying DB fallback: ${authError.message}`
+      );
+
+      if (!shopFromBody) throw new Error("No shop param provided in body for DB fallback");
+
+      const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
+      if (!sessionRecord) throw new Error("No DB session found");
+
+      session = {
+        shop: sessionRecord.shop,
+        accessToken: sessionRecord.accessToken,
+        scope: sessionRecord.scope,
+      };
+    }
+
+    // Prefer session.shop, fallback to body.shop
+    const shop = session?.shop || shopFromBody;
+    const accessToken = session?.accessToken;
+    if (!shop) throw new Error("No shop param provided (missing in session and body)");
+    if (!accessToken) throw new Error("Missing access token for shop");
+
   const formData = await request.formData();
   const customerId = formData.get("customerId");
   const name = formData.get("name");
