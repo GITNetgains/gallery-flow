@@ -21,8 +21,11 @@ CREATE TABLE "public"."Session" (
 
 -- CreateTable
 CREATE TABLE "public"."Setting" (
-    "id" TEXT NOT NULL DEFAULT 'global-setting',
+    "id" TEXT NOT NULL,
+    "shop" TEXT NOT NULL,
     "addEventEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Setting_pkey" PRIMARY KEY ("id")
 );
@@ -64,9 +67,13 @@ CREATE TABLE "public"."Event" (
     "date" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "imageUrl" TEXT,
+    "shop" TEXT NOT NULL,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Setting_shop_key" ON "public"."Setting"("shop");
 
 -- AddForeignKey
 ALTER TABLE "public"."GalleryUpload" ADD CONSTRAINT "GalleryUpload_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "public"."Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;

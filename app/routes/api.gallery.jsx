@@ -118,7 +118,7 @@ export const loader = async ({ request }) => {
     }
 
     const setting = await db.setting.findUnique({
-      where: { id: "global-setting" },
+      where: { shop },
     });
 
     if (!setting) {

@@ -22,7 +22,7 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_products,read_customers, unauthenticated_read_customers,unauthenticated_write_customers,read_themes,write_themes"
+scopes = "write_products,read_products,read_content,read_themes,read_customers, unauthenticated_read_customers,unauthenticated_write_customers,read_themes,write_themes"
 
 
 

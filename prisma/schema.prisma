@@ -34,9 +34,13 @@ model Session {
 
 
 model Setting {
-  id              String  @id @default("global-setting")
-  addEventEnabled Boolean @default(true)
+  id              String   @id @default(cuid())
+  shop            String   @unique
+  addEventEnabled Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
+
 
 model GalleryUpload {
   id         String   @id @default(uuid())
@@ -71,5 +75,6 @@ model Event {
   date        DateTime?
   createdAt   DateTime @default(now())
   imageUrl    String?
+  shop        String 
   GalleryUpload GalleryUpload[]
 }

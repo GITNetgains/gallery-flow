@@ -1,8 +1,15 @@
-
-
 import { useLoaderData, useFetcher } from '@remix-run/react';
 import { json } from '@remix-run/node';
-import { Page, DataTable, Button, Modal, TextContainer, Select, Card, Icon } from '@shopify/polaris';
+import {
+  Page,
+  DataTable,
+  Button,
+  Modal,
+  TextContainer,
+  Select,
+  Card,
+  Icon,
+} from '@shopify/polaris';
 import { EditIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import { useState, useEffect } from 'react';
 import db from '../db.server';
@@ -15,29 +22,51 @@ import {
   fetchSingleCollection,
   fetchSinglePage,
 } from '../shopifyApiUtils';
+import { authenticate } from '../shopify.server';
 
-export async function loader() {
+// -----------------------------
+// Loader
+// -----------------------------
+export async function loader({ request }) {
+  const { session, admin } = await authenticate.admin(request);
+  const shop = session.shop;
+  const accessToken = session.accessToken;
+
   const events = await db.event.findMany({
+    where: { shop },
     orderBy: { createdAt: 'desc' },
   });
 
   const [products, blogs, collections, pages, setting] = await Promise.all([
-    fetchProducts(),
-    fetchBlogs(),
-    fetchCollections(),
-    fetchPages(),
-    db.setting.findUnique({ where: { id: 'global-setting' } }),
+    fetchProducts(shop, accessToken),
+    fetchBlogs(shop, accessToken),
+    fetchCollections(shop, accessToken),
+    fetchPages(shop, accessToken),
+    db.setting.findUnique({ where: { shop } }),
   ]);
 
-  return json({ events, products, blogs, collections, pages, setting });
+  return json({ events, products, blogs, collections, pages, setting, shop, accessToken });
 }
 
+// -----------------------------
+// Action
+// -----------------------------
 export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const accessToken = session.accessToken;
+
   const formData = await request.formData();
   const actionType = formData.get("actionType");
 
   // Fetch setting
-  const setting = await db.setting.findUnique({ where: { id: "global-setting" } });
+  let setting = await db.setting.findUnique({ where: { shop } });
+
+  if (!setting) {
+    setting = await db.setting.create({
+      data: { shop, addEventEnabled: true },
+    });
+  }
 
   if (!setting.addEventEnabled && (actionType === "createEvent" || actionType === "editEvent")) {
     return json({ success: false, error: "Adding events is currently disabled." }, { status: 403 });
@@ -45,9 +74,10 @@ export async function action({ request }) {
 
   if (actionType === "toggleAddEvent") {
     const enabled = formData.get("enabled") === "true";
-    await db.setting.update({
-      where: { id: "global-setting" },
-      data: { addEventEnabled: enabled },
+    await db.setting.upsert({
+      where: { shop },
+      update: { addEventEnabled: enabled },
+      create: { shop, addEventEnabled: enabled },
     });
     return json({ success: true });
   }
@@ -62,23 +92,25 @@ export async function action({ request }) {
       return json({ success: false, error: "Type and item are required" }, { status: 400 });
     }
 
+    // Fetch item data based on type
     let itemData;
     switch (type) {
       case "product":
-        itemData = await fetchSingleProduct(itemId);
+        itemData = await fetchSingleProduct(shop, accessToken, itemId);
         break;
-       case "blog":
-    const blogs = await fetchBlogs();
-    const article = blogs.flatMap(b => b.articles).find(a => a.id === itemId);
-    if (!article) return json({ success: false, error: "Article not found" }, { status: 400 });
-    itemData = { id: article.id, title: article.title };
-    type = "article";
-    break;
+      case "blog": {
+        const blogs = await fetchBlogs(shop, accessToken);
+        const article = blogs.flatMap(b => b.articles).find(a => a.id === itemId);
+        if (!article) return json({ success: false, error: "Article not found" }, { status: 400 });
+        itemData = { id: article.id, title: article.title };
+        type = "article"; // store as article
+        break;
+      }
       case "collection":
-        itemData = await fetchSingleCollection(itemId);
+        itemData = await fetchSingleCollection(shop, accessToken, itemId);
         break;
       case "page":
-        itemData = await fetchSinglePage(itemId);
+        itemData = await fetchSinglePage(shop, accessToken, itemId);
         break;
       default:
         itemData = null;
@@ -88,11 +120,18 @@ export async function action({ request }) {
       return json({ success: false, error: "Failed to fetch item data" }, { status: 400 });
     }
 
+    // --- Safe date parsing ---
+    let parsedDate = date ? new Date(date) : null;
+    if (parsedDate && isNaN(parsedDate.getTime())) {
+      parsedDate = null;
+    }
+
     const data = {
       name: itemData.title,
       type,
       shopifyId: itemId,
-      date: date ? new Date(date) : null,
+      date: parsedDate,
+      shop,
     };
 
     if (actionType === "createEvent") {
@@ -116,13 +155,8 @@ export async function action({ request }) {
   if (actionType === "deleteEvent") {
     const eventId = formData.get("eventId");
 
-    await db.galleryUpload.deleteMany({
-      where: { eventId },
-    });
-
-    await db.event.delete({
-      where: { id: eventId },
-    });
+    await db.galleryUpload.deleteMany({ where: { eventId } });
+    await db.event.delete({ where: { id: eventId } });
 
     return json({ success: true });
   }
@@ -130,6 +164,9 @@ export async function action({ request }) {
   return json({ success: false, error: "Invalid action" }, { status: 400 });
 }
 
+// -----------------------------
+// Component
+// -----------------------------
 export default function AdminAddEvent() {
   const { events, products, blogs, collections, pages, setting } = useLoaderData();
   const fetcher = useFetcher();
@@ -171,7 +208,7 @@ export default function AdminAddEvent() {
       date: event.date ? event.date.split('T')[0] : "",
     });
 
-    if (event.type === "blog") {
+    if (event.type === "blog" || event.type === "article") {
       const blog = blogs.find(b => b.articles.some(a => a.id === event.shopifyId));
       if (blog) {
         setSelectedBlogId(blog.id);
@@ -208,20 +245,13 @@ export default function AdminAddEvent() {
     }
   };
 
-  const filteredEvents = filterType === "all" 
-  ? events 
-  : events.filter(e => 
-      filterType === "blog" 
-        ? e.type === "blog" || e.type === "article" 
-        : e.type === filterType
-    );
-
-  const toggleAddEvent = () => {
-    fetcher.submit(
-      { actionType: "toggleAddEvent", enabled: !setting.addEventEnabled },
-      { method: "POST" }
-    );
-  };
+  const filteredEvents = filterType === "all"
+    ? events
+    : events.filter(e =>
+        filterType === "blog"
+          ? e.type === "blog" || e.type === "article"
+          : e.type === filterType
+      );
 
   return (
     <Page title="Manage gallery">
@@ -266,66 +296,65 @@ export default function AdminAddEvent() {
         }
       `}</style>
 
-     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-  <button
-    onClick={() => {
-      setEventModalOpen(true);
-      setIsEditing(false);
-      setNewEvent({ id: "", type: "", itemId: "", date: "" });
-      setSelectedBlogId("");
-      setBlogArticles([]);
-    }}
-    disabled={!setting.addEventEnabled}
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      background: !setting.addEventEnabled
-        ? '#d1d5db'
-        : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
-      color: !setting.addEventEnabled ? '#6b7280' : 'white',
-      border: 'none',
-      borderRadius: '6px',
-      padding: '6px 12px',
-      fontWeight: '600',
-      cursor: !setting.addEventEnabled ? 'not-allowed' : 'pointer',
-      boxShadow:'4px'
-    }}
-  >
-    Add Items
-    <Icon source={PlusIcon} color="baseWhite" />
-  </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <button
+          onClick={() => {
+            setEventModalOpen(true);
+            setIsEditing(false);
+            setNewEvent({ id: "", type: "", itemId: "", date: "" });
+            setSelectedBlogId("");
+            setBlogArticles([]);
+          }}
+          disabled={!setting?.addEventEnabled}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: !setting?.addEventEnabled
+              ? '#d1d5db'
+              : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
+            color: !setting?.addEventEnabled ? '#6b7280' : 'white',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            fontWeight: '600',
+            cursor: !setting?.addEventEnabled ? 'not-allowed' : 'pointer',
+            boxShadow:'4px'
+          }}
+        >
+          Add Items
+          <Icon source={PlusIcon} color="baseWhite" />
+        </button>
 
-  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-    <Select
-      
-      options={[
-        { label: "All", value: "all" },
-        { label: "Product", value: "product" },
-        { label: "Blog", value: "blog" },
-        { label: "Collection", value: "collection" },
-        { label: "Page", value: "page" },
-      ]}
-      onChange={setFilterType}
-      value={filterType}
-        disabled={!setting.addEventEnabled} 
-    />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <Select
+            options={[
+              { label: "All", value: "all" },
+              { label: "Product", value: "product" },
+              { label: "Blog", value: "blog" },
+              { label: "Collection", value: "collection" },
+              { label: "Page", value: "page" },
+            ]}
+            onChange={setFilterType}
+            value={filterType}
+            disabled={!setting?.addEventEnabled}
+          />
 
-    <label className="toggle-switch">
-      <input
-        type="checkbox"
-        checked={setting.addEventEnabled}
-        onChange={(e) => {
-          const formData = new FormData();
-          formData.append("actionType", "toggleAddEvent");
-          formData.append("enabled", (!setting.addEventEnabled).toString());
-          fetcher.submit(formData, { method: "POST" });
-        }}
-      />
-      <span className="slider"></span>
-    </label>
-  </div>
-</div>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={setting?.addEventEnabled}
+              onChange={() => {
+                const formData = new FormData();
+                formData.append("actionType", "toggleAddEvent");
+                formData.append("enabled", (!setting?.addEventEnabled).toString());
+                fetcher.submit(formData, { method: "POST" });
+              }}
+            />
+            <span className="slider"></span>
+          </label>
+        </div>
+      </div>
 
       {filteredEvents.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 20px' }}>
@@ -343,21 +372,20 @@ export default function AdminAddEvent() {
               setSelectedBlogId("");
               setBlogArticles([]);
             }}
-           disabled={!setting.addEventEnabled}
-    style={{
-    
-      gap: '8px',
-      background: !setting.addEventEnabled
-        ? '#d1d5db'
-        : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
-      color: !setting.addEventEnabled ? '#6b7280' : 'white',
-      border: 'none',
-      borderRadius: '6px',
-      padding: '6px 12px',
-      fontWeight: '600',
-      cursor: !setting.addEventEnabled ? 'not-allowed' : 'pointer',
-      boxShadow:'4px'
-    }}
+            disabled={!setting?.addEventEnabled}
+            style={{
+              gap: '8px',
+              background: !setting?.addEventEnabled
+                ? '#d1d5db'
+                : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
+              color: !setting?.addEventEnabled ? '#6b7280' : 'white',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontWeight: '600',
+              cursor: !setting?.addEventEnabled ? 'not-allowed' : 'pointer',
+              boxShadow:'4px'
+            }}
           >
             Create your first item
           </button>
@@ -367,17 +395,16 @@ export default function AdminAddEvent() {
           <DataTable
             columnContentTypes={['text', 'text', 'text', 'text', 'text']}
             headings={['#', 'Name', 'Type', 'Date', 'Actions']}
-           rows={filteredEvents.map((event, index) => [
-  index + 1,
-  event.name,
-  event.type.charAt(0).toUpperCase() + event.type.slice(1),
-  event.date ? new Date(event.date).toLocaleDateString() : "N/A",
-  <div style={{ display: "flex", gap: "8px" }}>
-    <Button icon={EditIcon} onClick={() => handleEdit(event)} plain />
-    <Button icon={DeleteIcon} onClick={() => handleDelete(event.id)} plain destructive />
-  </div>
-])}
-
+            rows={filteredEvents.map((event, index) => [
+              index + 1,
+              event.name,
+              event.type.charAt(0).toUpperCase() + event.type.slice(1),
+              event.date ? new Date(event.date).toLocaleDateString() : "N/A",
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Button icon={EditIcon} onClick={() => handleEdit(event)} plain />
+                <Button icon={DeleteIcon} onClick={() => handleDelete(event.id)} plain destructive />
+              </div>
+            ])}
           />
         </Card>
       )}
@@ -464,7 +491,7 @@ export default function AdminAddEvent() {
               <input
                 type="date"
                 name="date"
-                value={newEvent.date}
+                value={newEvent.date || ""}
                 onChange={(e) => setNewEvent(prev => ({ ...prev, date: e.target.value }))}
                 style={{ width: "100%", padding: "8px", marginBottom: "10px", borderRadius: "4px", border: "1px solid #ccc" }}
               />
