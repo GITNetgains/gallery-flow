@@ -7,8 +7,12 @@ import {
   fetchBlogs,
   fetchCollections,
   fetchPages,
+  fetchSingleProduct,
+  fetchSingleCollection,
+  fetchSinglePage,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
+import { authenticate } from "../shopify.server"; // ✅ make sure you import your authenticate util
 
 // -----------------------------
 // Cloudinary Config
@@ -42,6 +46,53 @@ function getCorsOptions(request) {
 }
 
 // -----------------------------
+// Helper: resolve session
+// -----------------------------
+async function getSession(request) {
+  let shopFromBody;
+
+  if (request.method !== "GET") {
+    try {
+      const formData = await request.clone().formData();
+      shopFromBody = formData.get("shop");
+    } catch {
+      // ignore
+    }
+  } else {
+    const url = new URL(request.url);
+    shopFromBody = url.searchParams.get("shop");
+  }
+
+  let session;
+  try {
+    const authResult = await authenticate.admin(request);
+    session = authResult.session;
+    console.log(
+      `[${new Date().toISOString()}] ✅ Auth success for shop: ${session.shop}`
+    );
+  } catch (authError) {
+    console.error(
+      `[${new Date().toISOString()}] ❌ Auth failed, fallback to DB: ${authError.message}`
+    );
+
+    if (!shopFromBody) throw new Error("No shop param provided for DB fallback");
+
+    const sessionRecord = await db.session.findFirst({
+      where: { shop: shopFromBody },
+    });
+    if (!sessionRecord) throw new Error("No DB session found");
+
+    session = {
+      shop: sessionRecord.shop,
+      accessToken: sessionRecord.accessToken,
+      scope: sessionRecord.scope,
+    };
+  }
+
+  return session;
+}
+
+// -----------------------------
 // Loader with CORS
 // -----------------------------
 export const loader = async ({ request }) => {
@@ -58,42 +109,16 @@ export const loader = async ({ request }) => {
       where: { id: "global-setting" },
     });
 
-       let session;
-    try {
-      const authResult = await authenticate.admin(request);
-      session = authResult.session;
-      console.log(
-        `[${new Date().toISOString()}] Authentication successful for shop: ${session.shop}`
-      );
-    } catch (authError) {
-      console.error(
-        `[${new Date().toISOString()}] Authentication failed, trying DB fallback: ${authError.message}`
-      );
-
-      if (!shopFromBody) throw new Error("No shop param provided in body for DB fallback");
-
-      const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
-      if (!sessionRecord) throw new Error("No DB session found");
-
-      session = {
-        shop: sessionRecord.shop,
-        accessToken: sessionRecord.accessToken,
-        scope: sessionRecord.scope,
-      };
-    }
-
-    // Prefer session.shop, fallback to body.shop
-    const shop = session?.shop || shopFromBody;
-    const accessToken = session?.accessToken;
-    if (!shop) throw new Error("No shop param provided (missing in session and body)");
-    if (!accessToken) throw new Error("Missing access token for shop");
+    const session = await getSession(request);
+    const shop = session.shop;
+    const accessToken = session.accessToken;
 
     if (!setting.addEventEnabled) {
       const [products, blogs, collections, pages] = await Promise.all([
-        fetchProducts(shop,accessToken),
-        fetchBlogs(shop,accessToken),
-        fetchCollections(shop,accessToken),
-        fetchPages(shop,accessToken),
+        fetchProducts(shop, accessToken),
+        fetchBlogs(shop, accessToken),
+        fetchCollections(shop, accessToken),
+        fetchPages(shop, accessToken),
       ]);
 
       const response = json({
@@ -108,9 +133,7 @@ export const loader = async ({ request }) => {
       return await cors(request, response, getCorsOptions(request));
     } else {
       const pastEvents = await db.event.findMany({
-        where: {
-          date: { lt: new Date() },
-        },
+        where: { date: { lt: new Date() } },
         orderBy: { date: "desc" },
       });
 
@@ -156,55 +179,29 @@ export const action = async ({ request }) => {
     );
   }
 
-     let session;
-    try {
-      const authResult = await authenticate.admin(request);
-      session = authResult.session;
-      console.log(
-        `[${new Date().toISOString()}] Authentication successful for shop: ${session.shop}`
+  try {
+    const session = await getSession(request);
+    const shop = session.shop;
+    const accessToken = session.accessToken;
+
+    const formData = await request.formData();
+    const customerId = formData.get("customerId");
+    const name = formData.get("name");
+    const email = formData.get("email");
+    const eventId = formData.get("eventId");
+    const files = formData.getAll("images");
+
+    if (!customerId || !email || !eventId || files.length === 0) {
+      return await cors(
+        request,
+        json(
+          { success: false, error: "Missing required fields or files." },
+          { status: 400 }
+        ),
+        getCorsOptions(request)
       );
-    } catch (authError) {
-      console.error(
-        `[${new Date().toISOString()}] Authentication failed, trying DB fallback: ${authError.message}`
-      );
-
-      if (!shopFromBody) throw new Error("No shop param provided in body for DB fallback");
-
-      const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
-      if (!sessionRecord) throw new Error("No DB session found");
-
-      session = {
-        shop: sessionRecord.shop,
-        accessToken: sessionRecord.accessToken,
-        scope: sessionRecord.scope,
-      };
     }
 
-    // Prefer session.shop, fallback to body.shop
-    const shop = session?.shop || shopFromBody;
-    const accessToken = session?.accessToken;
-    if (!shop) throw new Error("No shop param provided (missing in session and body)");
-    if (!accessToken) throw new Error("Missing access token for shop");
-
-  const formData = await request.formData();
-  const customerId = formData.get("customerId");
-  const name = formData.get("name");
-  const email = formData.get("email");
-  const eventId = formData.get("eventId");
-  const files = formData.getAll("images");
-
-  if (!customerId || !email || !eventId || files.length === 0) {
-    return await cors(
-      request,
-      json(
-        { success: false, error: "Missing required fields or files." },
-        { status: 400 }
-      ),
-      getCorsOptions(request)
-    );
-  }
-
-  try {
     let eventRecord = await db.event.findUnique({ where: { id: eventId } });
 
     let galleryData = {
@@ -234,22 +231,22 @@ export const action = async ({ request }) => {
       let itemName = "";
 
       if (type === "product") {
-        const products = await fetchProducts(shop,accessToken);
+        const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
       } else if (type === "article") {
-        const blogs = await fetchBlogs(shop,accessToken);
+        const blogs = await fetchBlogs(shop, accessToken);
         const allArticles = blogs.flatMap((b) =>
           b.articles.map((a) => ({ ...a, blogTitle: b.title }))
         );
         const matched = allArticles.find((a) => a.id === eventId);
         itemName = matched?.title || "Article";
       } else if (type === "collection") {
-        const collections = await fetchCollections(shop,accessToken);
+        const collections = await fetchCollections(shop, accessToken);
         const matched = collections.find((c) => c.id === eventId);
         itemName = matched?.title || "Collection";
       } else if (type === "page") {
-        const pages = await fetchPages(shop,accessToken);
+        const pages = await fetchPages(shop, accessToken);
         const matched = pages.find((pg) => pg.id === eventId);
         itemName = matched?.title || "Page";
       }
@@ -267,18 +264,17 @@ export const action = async ({ request }) => {
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
 
-      // Convert buffer → base64 → upload
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
       const uploadRes = await cloudinary.v2.uploader.upload(base64, {
-        folder: "shopify-gallery", // 👈 optional folder
+        folder: "shopify-gallery",
         public_id: `${Date.now()}-${file.name}`,
       });
 
       await db.image.create({
         data: {
           id: uuidv4(),
-          url: uploadRes.secure_url, // ✅ Cloudinary URL
+          url: uploadRes.secure_url,
           galleryId: newGallery.id,
         },
       });
