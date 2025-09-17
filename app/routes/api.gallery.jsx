@@ -10,7 +10,7 @@ import {
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
 import { access } from "fs";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "../shopify.server";
 
 // -----------------------------
 // Cloudinary Config
