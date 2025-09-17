@@ -105,13 +105,29 @@ export const loader = async ({ request }) => {
   }
 
   try {
+    const session = await getSession(request); // 👈 may throw if no shop
+    const shop = session?.shop;
+    const accessToken = session?.accessToken;
+
+    if (!shop || !accessToken) {
+      return await cors(
+        request,
+        json({ success: false, error: "Missing shop or accessToken" }, { status: 400 }),
+        getCorsOptions(request)
+      );
+    }
+
     const setting = await db.setting.findUnique({
       where: { id: "global-setting" },
     });
 
-    const session = await getSession(request);
-    const shop = session.shop;
-    const accessToken = session.accessToken;
+    if (!setting) {
+      return await cors(
+        request,
+        json({ success: false, error: "Global setting not found" }, { status: 500 }),
+        getCorsOptions(request)
+      );
+    }
 
     if (!setting.addEventEnabled) {
       const [products, blogs, collections, pages] = await Promise.all([
@@ -121,35 +137,39 @@ export const loader = async ({ request }) => {
         fetchPages(shop, accessToken),
       ]);
 
-      const response = json({
-        success: true,
-        disabled: true,
-        products,
-        blogs,
-        collections,
-        pages,
-      });
-
-      return await cors(request, response, getCorsOptions(request));
+      return await cors(
+        request,
+        json({
+          success: true,
+          disabled: true,
+          products,
+          blogs,
+          collections,
+          pages,
+        }),
+        getCorsOptions(request)
+      );
     } else {
       const pastEvents = await db.event.findMany({
         where: { date: { lt: new Date() } },
         orderBy: { date: "desc" },
       });
 
-      const response = json({
-        success: true,
-        disabled: false,
-        events: pastEvents,
-      });
-
-      return await cors(request, response, getCorsOptions(request));
+      return await cors(
+        request,
+        json({
+          success: true,
+          disabled: false,
+          events: pastEvents,
+        }),
+        getCorsOptions(request)
+      );
     }
   } catch (error) {
-    console.error("Error in loader:", error);
+    console.error("❌ Error in loader:", error);
     return await cors(
       request,
-      json({ success: false, error: "Server error" }, { status: 500 }),
+      json({ success: false, error: error.message || "Server error" }, { status: 500 }),
       getCorsOptions(request)
     );
   }
@@ -183,7 +203,6 @@ export const action = async ({ request }) => {
     const session = await getSession(request);
     const shop = session.shop;
     const accessToken = session.accessToken;
-
     const formData = await request.formData();
     const customerId = formData.get("customerId");
     const name = formData.get("name");

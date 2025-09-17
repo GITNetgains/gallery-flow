@@ -50,6 +50,8 @@
             <input type="hidden" name="customerId" id="upload-customer-id" />
             <input type="hidden" name="name" id="upload-customer-name" />
             <input type="hidden" name="email" id="upload-customer-email" />
+            <!-- NEW: hidden shop param -->
+            <input type="hidden" name="shop" value="{{ shop.permanent_domain }}" />
 
             <div class="Polaris-FormLayout" style="display: flex; flex-direction: column; gap: 15px;">
 
@@ -126,14 +128,12 @@
 
   let allItems = [];
 
-
   window.customerData = {
     id: {{ customer.id | json }},
     email: {{ customer.email | json }},
     first_name: {{ customer.first_name | json }},
     last_name: {{ customer.last_name | json }}
   };
-
 
   if (modalOverlay) {
     document.body.appendChild(modalOverlay);
@@ -147,20 +147,17 @@
     if (modalOverlay) modalOverlay.style.display = "none";
   }
 
-  // ✅ Button logic (just check window.customerData)
   uploadButton?.addEventListener("click", function () {
     if (!window.customerData?.email) {
       showToast("⚠️ Please log in to upload images.");
       setTimeout(() => {
         window.location.href = "/account/login";
       }, 1500);
-      
     } else {
       if (modalOverlay) modalOverlay.style.display = "flex";
     }
   });
 
-  // ✅ Close modal
   closeModalBtn?.addEventListener("click", closeUploadModal);
   modalOverlay?.addEventListener("click", function (e) {
     if (e.target === modalOverlay) closeUploadModal();
@@ -175,7 +172,7 @@
     const formData = new FormData(form);
 
     try {
-      const res = await fetch("https://gallery-flow-two.vercel.app/api/gallery", {
+      const res = await fetch(`https://gallery-flow-two.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`, {
         method: "POST",
         body: formData,
       });
@@ -201,21 +198,18 @@
     }
   });
 
-  // ✅ Populate customer fields from window
   function populateCustomerFieldsFromWindow() {
     if (window.customerData) {
       document.getElementById("upload-customer-id").value = window.customerData.id || "";
       document.getElementById("upload-customer-name").value =
         `${window.customerData.first_name || ""} ${window.customerData.last_name || ""}`.trim();
       document.getElementById("upload-customer-email").value = window.customerData.email || "";
-      console.log("✅ Customer fields populated from window:", window.customerData);
     }
   }
 
-  // ✅ Fetch events/products/etc
   async function fetchAllItems() {
     try {
-      const res = await fetch("https://gallery-flow-two.vercel.app/api/gallery");
+      const res = await fetch(`https://gallery-flow-two.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`);
       const json = await res.json();
 
       if (!json.success) return;
@@ -242,7 +236,6 @@
     }
   }
 
-  // ✅ Dropdown logic
   typeSelect?.addEventListener("change", function () {
     const selectedType = this.value;
     if (!selectedType) {
@@ -264,7 +257,6 @@
     });
   }
 
-  // ✅ Simple toast function
   function showToast(msg) {
     const toast = document.createElement("div");
     toast.textContent = msg;
