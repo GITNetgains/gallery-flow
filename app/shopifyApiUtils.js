@@ -10,7 +10,7 @@ async function paginateQuery(shop, accessToken, query, extractFn) {
 
   while (hasNextPage) {
     try {
-      const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+      const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
         method: "POST",
         headers: {
           "X-Shopify-Access-Token": accessToken,
@@ -184,7 +184,7 @@ export async function fetchPages(shop, accessToken) {
 // -----------------------------
 export async function fetchSingleProduct(shop, accessToken, productId) {
   try {
-    const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+    const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
       method: "POST",
       headers: {
         "X-Shopify-Access-Token": accessToken,
@@ -228,7 +228,7 @@ export async function fetchSingleProduct(shop, accessToken, productId) {
 
 export async function fetchSingleCollection(shop, accessToken, collectionId) {
   try {
-    const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+    const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
       method: "POST",
       headers: {
         "X-Shopify-Access-Token": accessToken,
@@ -272,7 +272,7 @@ export async function fetchSingleCollection(shop, accessToken, collectionId) {
 
 export async function fetchSinglePage(shop, accessToken, pageId) {
   try {
-    const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+    const res = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
       method: "POST",
       headers: {
         "X-Shopify-Access-Token": accessToken,
