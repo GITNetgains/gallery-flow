@@ -29,6 +29,7 @@ export const loader = async ({ request }) => {
     let images = [];
 
     if (setting?.addEventEnabled) {
+      // ✅ Event galleries only
       const events = await db.event.findMany({
         include: {
           GalleryUpload: {
@@ -55,6 +56,7 @@ export const loader = async ({ request }) => {
       }
 
     } else {
+      // ✅ Global galleries only
       const galleries = await db.galleryUpload.findMany({
         where: {
           itemType: contentType,
@@ -65,17 +67,11 @@ export const loader = async ({ request }) => {
         },
       });
 
-      console.log("🔍 Fetched galleries count:", galleries.length);
+      console.log("🔍 Fetched global galleries:", galleries.length);
 
       const matchingGalleries = galleries.filter(gallery =>
         matchContentId(gallery.itemId, contentId)
       );
-
-      console.log("🔍 Matching galleries found count:", matchingGalleries.length);
-      console.log("🔍 contentId:", contentId);
-      console.log("🔍 contentType param:", contentType);
-      console.log("🔍 DB itemTypes found:", galleries.map(g => g.itemType));
-      console.log("🔍 DB itemIds found:", galleries.map(g => g.itemId));
 
       if (matchingGalleries.length) {
         images = matchingGalleries.flatMap(gallery =>
@@ -84,16 +80,18 @@ export const loader = async ({ request }) => {
             alt: img.altText || `Gallery image ${img.id}`
           }))
         );
-        console.log(`✅ General gallery images found for ${contentType}:`, images.length);
+        console.log(`✅ Global gallery images found for ${contentType}:`, images.length);
       } else {
-        console.log(`❌ No general gallery found for:`, contentId, contentType);
+        console.log(`❌ No global gallery found for:`, contentId, contentType);
       }
     }
 
     if (!images.length) {
       const response = json({
         approved: false,
-        message: "No approved gallery uploads found",
+        message: setting?.addEventEnabled
+          ? "No approved event gallery uploads found"
+          : "No approved global gallery uploads found",
         debug: { contentId, contentType, addEventEnabled: setting?.addEventEnabled }
       });
       return await cors(request, response, {
