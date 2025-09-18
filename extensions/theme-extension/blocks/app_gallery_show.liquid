@@ -96,3 +96,76 @@
 
   document.addEventListener("DOMContentLoaded", loadGallery);
 </script>
+
+{% schema %}
+{
+  "name": "Show Gallery",
+  "target": "section",
+  "settings": [
+    {
+      "type": "select",
+      "id": "gallery_type",
+      "label": "Select Content Type",
+      "options": [
+        { "value": "product", "label": "Product" },
+        { "value": "collection", "label": "Collection" },
+        { "value": "article", "label": "Blog Article" },
+        { "value": "page", "label": "Page" }
+      ],
+      "default": "product"
+    },
+    {
+      "type": "select",
+      "id": "gallery_layout",
+      "label": "Gallery Layout",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" },
+        { "value": "masonry", "label": "Masonry" }
+      ],
+      "default": "grid"
+    },
+    {
+  "type": "select",
+  "id": "object_fit",
+  "label": "Image Fit (object-fit)",
+  "options": [
+    { "value": "cover", "label": "Cover" },
+    { "value": "contain", "label": "Contain" }
+  ],
+  "default": "contain"
+},
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border Radius (px)",
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "default": 4
+    },
+    {
+      "type": "checkbox",
+      "id": "box_shadow",
+      "label": "Enable Box Shadow",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "image_height",
+      "label": "Image Height (for grid/carousel)",
+      "default": "200px",
+      "info": "Masonry layout uses natural image heights"
+    },
+    {
+      "type": "textarea",
+      "id": "custom_css",
+      "label": "Custom CSS",
+      "info": "Add any custom CSS here. Use #content-gallery-block as the root selector."
+    }
+  ],
+  "enabled_on": {
+    "templates": ["product", "collection", "article", "page"]
+  }
+}
+{% endschema %}
