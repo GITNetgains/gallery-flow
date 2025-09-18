@@ -38,7 +38,7 @@
   .gallery-carousel img {
     width: 100%;
     height: {{ block.settings.image_height | default: '200px' }};
-   object-fit: {{ block.settings.object_fit | default: 'contain' }};
+    object-fit: {{ block.settings.object_fit | default: 'contain' }};
     border-radius: {{ block.settings.border_radius | default: 4 }}px;
     transition: transform 0.3s ease;
   }
@@ -81,30 +81,27 @@
     display: block;
   }
 
-.loader {
-  border: 16px solid #f3f3f3; /* Light grey */
-  border-top: 16px solid #3498db; /* Blue */
-  border-radius: 50%;
-  width: 120px;
-  height: 120px;
-  animation: spin 2s linear infinite;
-  margin: 0 auto;
-}
+  .loader {
+    border: 16px solid #f3f3f3; /* Light grey */
+    border-top: 16px solid #3498db; /* Blue */
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    animation: spin 2s linear infinite;
+    margin: 0 auto;
+  }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
   /* Responsive masonry columns */
   @media (max-width: 900px) {
-    .gallery-masonry {
-      column-count: 2;
-    }
+    .gallery-masonry { column-count: 2; }
   }
   @media (max-width: 600px) {
-    .gallery-masonry {
-      column-count: 1;
-    }
+    .gallery-masonry { column-count: 1; }
   }
 
   /* Carousel layout styling */
@@ -132,7 +129,7 @@
   .swiper-slide img {
     width: 100%;
     height: {{ block.settings.image_height | default: '200px' }};
-  object-fit: {{ block.settings.object_fit | default: 'contain' }};
+    object-fit: {{ block.settings.object_fit | default: 'contain' }};
     border-radius: {{ block.settings.border_radius | default: 4 }}px;
   }
 
@@ -149,20 +146,24 @@
 </style>
 
 <script>
-  {% case block.settings.gallery_type %}
-    {% when 'product' %}
-      window.contentId = "{{ product.id }}";
-    {% when 'collection' %}
-      window.contentId = "{{ collection.id }}";
-    {% when 'article' %}
-      window.contentId = "{{ article.id }}";
-    {% when 'page' %}
-      window.contentId = "{{ page.id }}";
-    {% else %}
-      window.contentId = "";
-  {% endcase %}
-  window.contentType = "{{ block.settings.gallery_type | default: 'product' }}";
+  // Assign correct contentId based on gallery_type
+  {% assign galleryType = block.settings.gallery_type | default: "product" %}
+  {% if galleryType == "product" %}
+    window.contentId = "{{ product.id | default: '' }}";
+  {% elsif galleryType == "collection" %}
+    window.contentId = "{{ collection.id | default: '' }}";
+  {% elsif galleryType == "article" %}
+    window.contentId = "{{ article.id | default: '' }}";
+  {% elsif galleryType == "page" %}
+    window.contentId = "{{ page.id | default: '' }}";
+  {% else %}
+    window.contentId = "";
+  {% endif %}
+
+  window.contentType = "{{ galleryType }}";
   window.galleryLayout = "{{ block.settings.gallery_layout | default: 'grid' }}";
+
+  console.log("📸 Gallery Init → contentId:", window.contentId, "contentType:", window.contentType);
 
   document.addEventListener('DOMContentLoaded', async () => {
     const galleryDiv = document.getElementById("gallery-images");
@@ -172,40 +173,36 @@
     galleryDiv.className = `gallery-${window.galleryLayout}`;
     galleryDiv.innerHTML = `<div style="width:100%; text-align:center; padding:20px;"><div class="loader"></div></div>`;
 
-    // Ensure loader is visible for at least 500ms
     const minLoaderTime = 500;
     const loaderStart = Date.now();
 
     try {
+      if (!window.contentId) throw new Error("Missing contentId for this template");
+
       const apiUrl = `https://gallery-flow-two.vercel.app/api/gallery-show?contentId=${window.contentId}&contentType=${window.contentType}`;
       const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' }, mode: 'cors' });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-
       if (!data.approved || !data.images?.length) {
         throw new Error(data.message || "No approved images available");
       }
 
-      // Wait for minimum loader time to ensure visibility
       const timeElapsed = Date.now() - loaderStart;
       if (timeElapsed < minLoaderTime) {
         await new Promise(resolve => setTimeout(resolve, minLoaderTime - timeElapsed));
       }
 
-      // Clear loader and render images
+      // Render layouts
       if (window.galleryLayout === 'carousel') {
         galleryDiv.innerHTML = `
           <div class="swiper-container">
             <div class="swiper-wrapper">
               ${data.images.map(img => `
                 <div class="swiper-slide">
-                  <img 
-                    src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
-                    alt="${img.alt || 'Gallery image'}" 
-                    loading="lazy"
-                  >
+                  <img src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
+                       alt="${img.alt || 'Gallery image'}" loading="lazy">
                 </div>
               `).join('')}
             </div>
@@ -214,83 +211,42 @@
             <div class="swiper-pagination"></div>
           </div>
         `;
-
         new Swiper('.swiper-container', {
           loop: true,
-          autoplay: {
-            delay: 3000,
-            disableOnInteraction: false,
-          },
+          autoplay: { delay: 3000, disableOnInteraction: false },
           spaceBetween: 10,
-          pagination: {
-            el: '.swiper-pagination',
-            clickable: true,
-          },
-          navigation: {
-            nextEl: '.swiper-button-next',
-            prevEl: '.swiper-button-prev',
-          },
-          breakpoints: {
-            320: {
-              slidesPerView: 1,
-              spaceBetween: 10,
-            },
-            768: {
-              slidesPerView: 3,
-              spaceBetween: 10,
-            },
-            1024: {
-              slidesPerView: 4,
-              spaceBetween: 15,
-            }
-          }
+          pagination: { el: '.swiper-pagination', clickable: true },
+          navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+          breakpoints: { 320:{slidesPerView:1},768:{slidesPerView:3},1024:{slidesPerView:4} }
         });
 
       } else if (window.galleryLayout === 'masonry') {
         galleryDiv.innerHTML = data.images.map(img => `
           <div>
-            <img 
-              src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
-              alt="${img.alt || 'Gallery image'}" 
-              loading="lazy"
-            >
+            <img src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
+                 alt="${img.alt || 'Gallery image'}" loading="lazy">
           </div>
         `).join('');
-        
-        // Apply masonry effect after images load
         const images = galleryDiv.querySelectorAll('img');
         let loadedCount = 0;
-        
         images.forEach(img => {
-          img.onload = () => {
+          img.onload = img.onerror = () => {
             loadedCount++;
-            if (loadedCount === images.length) {
-              adjustMasonryLayout();
-            }
+            if (loadedCount === images.length) adjustMasonryLayout();
           };
-          if (img.complete) {
-            loadedCount++;
-            if (loadedCount === images.length) {
-              adjustMasonryLayout();
-            }
-          }
         });
-        
+
       } else {
         galleryDiv.innerHTML = data.images.map(img => `
           <div>
-            <img 
-              src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
-              alt="${img.alt || 'Gallery image'}" 
-              loading="lazy"
-            >
+            <img src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
+                 alt="${img.alt || 'Gallery image'}" loading="lazy">
           </div>
         `).join('');
       }
 
     } catch (error) {
       console.error("Gallery error:", error);
-      // Wait for minimum loader time before showing error
       const timeElapsed = Date.now() - loaderStart;
       if (timeElapsed < minLoaderTime) {
         await new Promise(resolve => setTimeout(resolve, minLoaderTime - timeElapsed));
@@ -303,15 +259,11 @@
       `;
     }
   });
-  
+
   function adjustMasonryLayout() {
     const gallery = document.querySelector('.gallery-masonry');
     if (!gallery) return;
-    
     gallery.style.display = 'block';
-    setTimeout(() => {
-      gallery.style.display = 'block';
-    }, 50);
   }
 </script>
 
@@ -344,15 +296,15 @@
       "default": "grid"
     },
     {
-  "type": "select",
-  "id": "object_fit",
-  "label": "Image Fit (object-fit)",
-  "options": [
-    { "value": "cover", "label": "Cover" },
-    { "value": "contain", "label": "Contain" }
-  ],
-  "default": "contain"
-},
+      "type": "select",
+      "id": "object_fit",
+      "label": "Image Fit (object-fit)",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ],
+      "default": "contain"
+    },
     {
       "type": "range",
       "id": "border_radius",
