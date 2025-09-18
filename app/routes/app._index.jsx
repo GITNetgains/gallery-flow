@@ -73,14 +73,25 @@ export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
+  // ✅ Per-shop unique customers
   const uniqueCustomers = await db.galleryUpload.findMany({
+    where: { shop },
     distinct: ['email'],
     select: { email: true },
   });
 
-  const submittedImages = await db.image.count();
-  const approvedImages = await db.image.count({ where: { status: 'approved' } });
-  const declinedImages = await db.image.count({ where: { status: 'declined' } });
+  // ✅ Per-shop images
+  const submittedImages = await db.image.count({
+    where: { shop },
+  });
+
+  const approvedImages = await db.image.count({
+    where: { shop, status: 'approved' },
+  });
+
+  const declinedImages = await db.image.count({
+    where: { shop, status: 'declined' },
+  });
 
   // ✅ Per-shop setting
   const setting = await db.setting.upsert({
