@@ -147,18 +147,24 @@
 
 <script>
   // Assign correct contentId based on gallery_type
-  {% assign galleryType = block.settings.gallery_type | default: "product" %}
-  {% if galleryType == "product" %}
-    window.contentId = "{{ product.id | default: '' }}";
-  {% elsif galleryType == "collection" %}
-    window.contentId = "{{ collection.id | default: '' }}";
-  {% elsif galleryType == "article" %}
-    window.contentId = "{{ article.id | default: '' }}";
-  {% elsif galleryType == "page" %}
-    window.contentId = "{{ page.id | default: '' }}";
-  {% else %}
-    window.contentId = "";
-  {% endif %}
+ {% case request.page_type %}
+    {% when 'product' %}
+      window.contentId = "{{ product.id | default: '' }}";
+      window.contentType = "product";
+    {% when 'collection' %}
+      window.contentId = "{{ collection.id | default: '' }}";
+      window.contentType = "collection";
+    {% when 'article' %}
+      window.contentId = "{{ article.id | default: '' }}";
+      window.contentType = "article";
+    {% when 'page' %}
+      window.contentId = "{{ page.id | default: '' }}";
+      window.contentType = "page";
+    {% else %}
+      window.contentId = "";
+      window.contentType = "unknown";
+  {% endcase %}
+
 
   window.contentType = "{{ galleryType }}";
   window.galleryLayout = "{{ block.settings.gallery_layout | default: 'grid' }}";
