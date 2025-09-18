@@ -27,23 +27,6 @@ function ThemeEditorButton() {
       }
     } catch (error) {
       console.error('Error opening theme editor (specific theme):', error.message);
-      try {
-        const shop = new URL(window.location.href).searchParams.get('shop');
-        if (shop) {
-          const fallbackUrl = new URL(`https://${shop}/admin/themes/current/editor`);
-          const appEmbedValue = '4e1fbe99fba5bf48f094895616d6f622/app_gallery';
-          fallbackUrl.searchParams.set('context', 'apps');
-          fallbackUrl.searchParams.set('appEmbed', encodeURIComponent(appEmbedValue));
-          window.location.href = fallbackUrl.toString();
-        }
-      } catch (fallbackError) {
-        console.error('Error opening theme editor (fallback):', fallbackError.message);
-        const shop = new URL(window.location.href).searchParams.get('shop');
-        if (shop) {
-          const finalFallbackUrl = `https://${shop}/admin/themes/current/editor?context=apps`;
-          window.open(finalFallbackUrl, '_blank');
-        }
-      }
     }
   };
 
@@ -70,46 +53,55 @@ function ThemeEditorButton() {
 
 // ---------------- Loader -----------------
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
+  try {
+    const { session } = await authenticate.admin(request);
+    const shop = session?.shop;
+    if (!shop) throw new Error('No shop found in session');
 
-  // ✅ Per-shop unique customers
-  const uniqueCustomers = await db.galleryUpload.findMany({
-    where: { shop },
-    distinct: ['email'],
-    select: { email: true },
-  });
+    // ---------------- Metrics -----------------
+    // Unique customers per shop
+    const uniqueCustomers = await db.galleryUpload.findMany({
+      where: { shop },
+      distinct: ['email'],
+      select: { email: true },
+    });
 
-  // ✅ Per-shop images
-  const submittedImages = await db.image.count({
-    where: { shop },
-  });
+    // Submitted images per shop
+    const submittedImages = await db.image.count({
+      where: { gallery: { shop } },
+    });
 
-  const approvedImages = await db.image.count({
-    where: { shop, status: 'approved' },
-  });
+    // Approved images per shop
+    const approvedImages = await db.image.count({
+      where: { status: 'approved', gallery: { shop } },
+    });
 
-  const declinedImages = await db.image.count({
-    where: { shop, status: 'declined' },
-  });
+    // Declined images per shop
+    const declinedImages = await db.image.count({
+      where: { status: 'declined', gallery: { shop } },
+    });
 
-  // ✅ Per-shop setting
-  const setting = await db.setting.upsert({
-    where: { shop },
-    update: {},
-    create: { shop, addEventEnabled: true },
-  });
+    // Per-shop setting
+    const setting = await db.setting.upsert({
+      where: { shop },
+      update: {},
+      create: { shop, addEventEnabled: true },
+    });
 
-  return json({
-    numberOfCustomers: uniqueCustomers.length,
-    numberOfImagesApproved: approvedImages,
-    numberOfImagesDeclined: declinedImages,
-    numberOfSubmittedImages: submittedImages,
-    expiryEnabled: setting.addEventEnabled,
-  });
+    return json({
+      numberOfCustomers: uniqueCustomers.length,
+      numberOfImagesApproved: approvedImages,
+      numberOfImagesDeclined: declinedImages,
+      numberOfSubmittedImages: submittedImages,
+      expiryEnabled: setting.addEventEnabled,
+    });
+  } catch (error) {
+    console.error('❌ Dashboard loader error:', error);
+    return json({ success: false, error: error.message }, { status: 500 });
+  }
 };
 
-// ---------------- Dashboard -----------------
+// ---------------- Dashboard Component -----------------
 export default function Dashboard() {
   const {
     numberOfCustomers,
