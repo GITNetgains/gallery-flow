@@ -21,7 +21,7 @@ import {
   ArrowRightIcon,
 } from '@shopify/polaris-icons';
 import db from '../db.server';
-import { authenticate } from '../shopify.server'; // 🔥 make sure you have authenticate util
+import { authenticate } from '../shopify.server';
 
 // -----------------------------
 // Loader
@@ -30,13 +30,19 @@ export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
+  // Fetch galleries only for this shop
   const galleries = await db.galleryUpload.findMany({
     where: { shop },
     include: { images: true, event: true },
     orderBy: { createdAt: 'desc' },
   });
 
-  return json({ galleries });
+  // Ensure gallery.event is from the same shop
+  const galleriesForShop = galleries.filter(
+    g => !g.event || g.event.shop === shop
+  );
+
+  return json({ galleries: galleriesForShop });
 }
 
 // -----------------------------
@@ -52,8 +58,8 @@ export async function action({ request }) {
   const type = formData.get("type");
   const actionType = formData.get("actionType");
 
+  // DELETE gallery
   if (actionType === "delete" && id) {
-    // check shop ownership before deleting
     const gallery = await db.galleryUpload.findFirst({ where: { id, shop } });
     if (!gallery) {
       return json({ success: false, error: "Not found or unauthorized" }, { status: 404 });
@@ -67,14 +73,16 @@ export async function action({ request }) {
     return json({ success: false, error: "Missing data" }, { status: 400 });
   }
 
+  // Update gallery status
   if (type === "gallery") {
     const gallery = await db.galleryUpload.findFirst({ where: { id, shop } });
     if (!gallery) {
       return json({ success: false, error: "Not found or unauthorized" }, { status: 404 });
     }
     await db.galleryUpload.update({ where: { id }, data: { status } });
-  } else if (type === "image") {
-    // also check via gallery relation
+  } 
+  // Update image status
+  else if (type === "image") {
     const image = await db.image.findFirst({
       where: { id, gallery: { shop } },
     });
@@ -101,9 +109,8 @@ export default function AdminImages() {
     if (!searchTerm) return galleries;
     return galleries.filter(gallery => {
       const customerId = gallery.customerId.split('/').pop().toLowerCase();
-      const eventName = gallery.event?.name?.toLowerCase() || '';
-      const searchLower = searchTerm.toLowerCase();
-      return customerId.includes(searchLower) || eventName.includes(searchLower);
+      const eventName = gallery.event?.name?.toLowerCase() || gallery.itemName?.toLowerCase() || '';
+      return customerId.includes(searchTerm.toLowerCase()) || eventName.includes(searchTerm.toLowerCase());
     });
   }, [galleries, searchTerm]);
 
@@ -117,10 +124,9 @@ export default function AdminImages() {
     const remainingCount = gallery.images.length - 2;
 
     return [
-      index + 1, // Serial number
+      index + 1,
       gallery.customerId.split('/').pop(),
       gallery.event ? gallery.event.name : gallery.itemName || "N/A",
-
       <div style={{ textAlign: 'center' }}>
         <Badge
           tone={
@@ -132,7 +138,6 @@ export default function AdminImages() {
           {gallery.status}
         </Badge>
       </div>,
-
       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
         {firstTwoImages.map((img, idx) => (
           <div key={img.id} style={{ position: 'relative' }}>
@@ -155,19 +160,11 @@ export default function AdminImages() {
           </div>
         ))}
         {remainingCount > 0 && (
-          <span 
-            onClick={() => openModal(gallery, 2)}
-            style={{
-              color: 'var(--p-color-text-subdued)',
-              cursor: 'pointer',
-              marginLeft: '4px'
-            }}
-          >
+          <span onClick={() => openModal(gallery, 2)} style={{ color: 'var(--p-color-text-subdued)', cursor: 'pointer', marginLeft: '4px' }}>
             +{remainingCount} more...
           </span>
         )}
       </div>,
-
       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', alignItems: 'center' }}>
         <fetcher.Form method="POST">
           <input type="hidden" name="type" value="gallery" />
@@ -222,30 +219,13 @@ export default function AdminImages() {
 
   return (
     <Page title="Admin Gallery Approvals">
-      <style>{`
-        .Polaris-DataTable__Table thead tr th {
-          font-weight: bold !important;
-          font-size: 14px !important;
-        }
-        .Polaris-DataTable__Table th:nth-child(4),
-        .Polaris-DataTable__Table th:nth-child(5),
-        .Polaris-DataTable__Table td:nth-child(4),
-        .Polaris-DataTable__Table td:nth-child(5) {
-          text-align: center !important;
-        }
-        .search-container {
-          margin-bottom: 20px;
-          max-width: 400px;
-        }
-      `}</style>
-
-      <div className="search-container">
+      <div className="search-container" style={{ marginBottom: '20px', maxWidth: '400px' }}>
         <TextField
           label="Search galleries"
           labelHidden
           placeholder="Search by customer ID or name..."
           value={searchTerm}
-          onChange={(value) => setSearchTerm(value)}
+          onChange={setSearchTerm}
           autoComplete="off"
           clearButton
           onClearButtonClick={() => setSearchTerm('')}
@@ -254,22 +234,14 @@ export default function AdminImages() {
 
       {filteredGalleries.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>
-          <img
-            src="/images/camera.png" 
-            alt="No galleries"
-            style={{ width: '150px', marginBottom: '20px' }}
-          />
-          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '10px' }}>
-            No galleries found
-          </h2>
-          <p style={{ color: '#6b7280' }}>
-            There are currently no gallery uploads to review.
-          </p>
+          <img src="/images/camera.png" alt="No galleries" style={{ width: '150px', marginBottom: '20px' }} />
+          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '10px' }}>No galleries found</h2>
+          <p style={{ color: '#6b7280' }}>There are currently no gallery uploads to review.</p>
         </div>
       ) : (
         <DataTable
-          columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}
-          headings={['#', 'Customer ID', 'Name', 'Gallery Status', 'Images', 'Actions']}
+          columnContentTypes={['text','text','text','text','text','text']}
+          headings={['#','Customer ID','Name','Gallery Status','Images','Actions']}
           rows={rows}
         />
       )}
@@ -283,67 +255,26 @@ export default function AdminImages() {
               <span>Image Details</span>
               {activeGallery.images.length > 1 && (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    plain
-                    icon={ArrowLeftIcon}
-                    onClick={prevImage}
-                    disabled={activeImageIndex === 0}
-                  />
-                  <Button
-                    plain
-                    icon={ArrowRightIcon}
-                    onClick={nextImage}
-                    disabled={activeImageIndex === activeGallery.images.length - 1}
-                  />
+                  <Button plain icon={ArrowLeftIcon} onClick={prevImage} disabled={activeImageIndex === 0} />
+                  <Button plain icon={ArrowRightIcon} onClick={nextImage} disabled={activeImageIndex === activeGallery.images.length - 1} />
                 </div>
               )}
             </div>
           }
           large
-          primaryAction={{ 
-            content: 'Approve', 
-            onAction: () => handleApproveImage(currentImage.id) 
-          }}
+          primaryAction={{ content: 'Approve', onAction: () => handleApproveImage(currentImage.id) }}
           secondaryActions={[
-            { 
-              content: 'Decline', 
-              destructive: true, 
-              onAction: () => handleDeclineImage(currentImage.id),
-            },
-            {
-              content: (
-                <Badge
-                  tone={
-                    currentImage.status === "approved" ? "success" :
-                    currentImage.status === "declined" ? "critical" :
-                    "warning"
-                  }
-                >
-                  {currentImage.status}
-                </Badge>
-              ),
-              disabled: true
-            }
+            { content: 'Decline', destructive: true, onAction: () => handleDeclineImage(currentImage.id) },
+            { content: <Badge tone={currentImage.status === "approved" ? "success" : currentImage.status === "declined" ? "critical" : "warning"}>{currentImage.status}</Badge>, disabled: true }
           ]}
         >
-          <div style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '8px' }}>
-            <Modal.Section>
-              <TextContainer>
-                <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                  <img
-                    src={currentImage.url}
-                    alt="Full size"
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '600px',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-                    }}
-                  />
-                </div>
-              </TextContainer>
-            </Modal.Section>
-          </div>
+          <Modal.Section>
+            <TextContainer>
+              <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                <img src={currentImage.url} alt="Full size" style={{ maxWidth: '100%', maxHeight: '600px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.3)' }} />
+              </div>
+            </TextContainer>
+          </Modal.Section>
         </Modal>
       )}
     </Page>

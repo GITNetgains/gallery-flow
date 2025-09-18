@@ -4,24 +4,33 @@ import { json } from '@remix-run/node';
 import { Page, DataTable, Button, Badge, TextField, Pagination } from '@shopify/polaris';
 import { DeleteIcon } from '@shopify/polaris-icons';
 import db from '../db.server';
+import { authenticate } from "../shopify.server"; // ✅
 
-export async function loader() {
+export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
   const galleries = await db.galleryUpload.findMany({
+    where: { shop },
     include: { images: true, event: true },
   });
-  return json({ galleries });
+
+  return json({ galleries, shop });
 }
 
 export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
   const formData = await request.formData();
   const email = formData.get("email");
 
   if (email) {
-    const galleries = await db.galleryUpload.findMany({ where: { email } });
+    const galleries = await db.galleryUpload.findMany({ where: { email, shop } });
     for (const gallery of galleries) {
       await db.image.deleteMany({ where: { galleryId: gallery.id } });
     }
-    await db.galleryUpload.deleteMany({ where: { email } });
+    await db.galleryUpload.deleteMany({ where: { email, shop } });
     return json({ success: true });
   }
 
@@ -50,20 +59,12 @@ export default function CustomersPage() {
           status: new Set(),
         };
       }
-
-      // Add general gallery item type
       if (gallery.itemType) grouped[email].types.add(gallery.itemType);
-
-      // Add event type if exists
-      if (gallery.event && gallery.event.type) {
-        // Map 'article' back to 'blog' for display if needed
+      if (gallery.event?.type) {
         grouped[email].types.add(gallery.event.type === 'article' ? 'blog' : gallery.event.type);
       }
-
-      // Add status
       if (gallery.status) grouped[email].status.add(gallery.status);
     });
-
     return Object.values(grouped).map(c => ({
       ...c,
       types: Array.from(c.types),
@@ -71,12 +72,10 @@ export default function CustomersPage() {
     }));
   }, [galleries]);
 
-  // Filter customers by search
   const filteredCustomers = customers.filter(c =>
     c.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Calculate paginated data
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   const paginatedCustomers = filteredCustomers.slice(
     (currentPage - 1) * itemsPerPage,
@@ -94,59 +93,31 @@ export default function CustomersPage() {
         <span style={{ color: '#999' }}>N/A</span>
       ) : (
         customer.types.map((type, idx) => (
-          <span
-            key={idx}
-            style={{
-              border: '1px solid #ccc',
-              borderRadius: '12px',
-              padding: '2px 8px',
-              fontSize: '12px',
-            }}
-          >
-            {type.charAt(0).toUpperCase() + type.slice(1)}
+          <span key={idx} style={{ border: '1px solid #ccc', borderRadius: '12px', padding: '2px 8px', fontSize: '12px' }}>
+            {capitalizeFirst(type)}
           </span>
         ))
       )}
     </div>,
     customer.status.map(s => (
-      <Badge key={s} tone={
-        s === "approved" ? "success" :
-        s === "declined" ? "critical" :
-        "warning"
-      }>
-         {capitalizeFirst(s)}
+      <Badge key={s} tone={s === "approved" ? "success" : s === "declined" ? "critical" : "warning"}>
+        {capitalizeFirst(s)}
       </Badge>
     )),
     <fetcher.Form method="post">
       <input type="hidden" name="email" value={customer.email} />
-      <Button destructive icon={DeleteIcon} submit>
-        Delete
-      </Button>
+      <Button destructive icon={DeleteIcon} submit>Delete</Button>
     </fetcher.Form>
   ]);
 
   return (
     customers.length === 0 ? (
-      <div style={{
-        textAlign: 'center',
-        padding: '80px 20px',
-        border: '1px dashed #ccc',
-        borderRadius: '8px'
-      }}>
-        <img
-          src="https://cdn-icons-png.flaticon.com/512/4076/4076508.png"
-          alt="No customers illustration"
-          style={{ width: '120px', marginBottom: '20px', opacity: 0.6 }}
-        />
-        <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
-          No customers yet
-        </h2>
-        <p style={{ color: '#6b7280' }}>
-          There are no customers uploaded at the moment. Add the gallery upload section to your theme to let customers submit their galleries.
-        </p>
+      <div style={{ textAlign: 'center', padding: '80px 20px', border: '1px dashed #ccc' }}>
+        <h2>No customers yet</h2>
+        <p>There are no customers uploaded yet. Add the gallery upload section to your theme to let customers submit.</p>
       </div>
     ) : (
-      <Page title="Customer Galleries" subtitle="Manage customer gallery submissions">
+      <Page title="Customer Galleries">
         <TextField
           label="Search customers"
           value={search}

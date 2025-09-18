@@ -22,12 +22,16 @@ import {
   ArrowRightIcon,
 } from '@shopify/polaris-icons';
 import db from '../db.server';
+import { authenticate } from "../shopify.server"; // ✅
 
-export async function loader({ params }) {
+export async function loader({ request, params }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const { customerId } = params;
 
   const galleries = await db.galleryUpload.findMany({
     where: {
+      shop,
       customerId: {
         endsWith: customerId,
       },
@@ -35,19 +39,23 @@ export async function loader({ params }) {
     include: { images: true, event: true },
   });
 
-  return json({ galleries, customerId });
+  return json({ galleries, customerId, shop });
 }
 
 export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
   const formData = await request.formData();
   const id = formData.get("id");
   const status = formData.get("status");
   const type = formData.get("type");
   const actionType = formData.get("actionType");
 
+  // Delete gallery
   if (actionType === "delete" && id) {
     await db.image.deleteMany({ where: { galleryId: id } });
-    await db.galleryUpload.delete({ where: { id } });
+    await db.galleryUpload.deleteMany({ where: { id, shop } });
     return json({ success: true });
   }
 
@@ -56,7 +64,7 @@ export async function action({ request }) {
   }
 
   if (type === "gallery") {
-    await db.galleryUpload.update({ where: { id }, data: { status } });
+    await db.galleryUpload.updateMany({ where: { id, shop }, data: { status } });
   } else if (type === "image") {
     await db.image.update({ where: { id }, data: { status } });
   }
@@ -77,12 +85,10 @@ export default function CustomerGallery() {
     if (!searchTerm) return galleries;
     return galleries.filter(gallery => {
       const eventName = gallery.event?.name?.toLowerCase() || '';
-      const searchLower = searchTerm.toLowerCase();
-      return eventName.includes(searchLower);
+      return eventName.includes(searchTerm.toLowerCase());
     });
   }, [galleries, searchTerm]);
 
-  // Calculate pagination
   const totalPages = Math.ceil(filteredGalleries.length / itemsPerPage);
   const paginatedGalleries = filteredGalleries.slice(
     (currentPage - 1) * itemsPerPage,
@@ -102,14 +108,9 @@ export default function CustomerGallery() {
 
     return [
       (currentPage - 1) * itemsPerPage + index + 1,
-      <div style={{ 
-      maxWidth: '200px', 
-      wordWrap: 'break-word',
-      whiteSpace: 'normal',
-      
-    }}>
-      {gallery.event ? gallery.event.name : gallery.itemName || "N/A"}
-    </div>,
+      <div style={{ maxWidth: '200px', wordWrap: 'break-word', whiteSpace: 'normal' }}>
+        {gallery.event ? gallery.event.name : gallery.itemName || "N/A"}
+      </div>,
       <div style={{ textAlign: 'center' }}>
         <Badge
           tone={
@@ -133,7 +134,7 @@ export default function CustomerGallery() {
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color:'transparent'
+                color: 'transparent'
               }}
               onClick={() => openModal(gallery, idx)}
               title="View"
@@ -143,41 +144,32 @@ export default function CustomerGallery() {
           </div>
         ))}
         {remainingCount > 0 && (
-          <span 
-            onClick={() => openModal(gallery, 2)}
-            style={{
-              color: 'var(--p-color-text-subdued)',
-              cursor: 'pointer',
-              marginLeft: '4px',
-            }}
-          >
+          <span onClick={() => openModal(gallery, 2)} style={{ color: '#6b7280', cursor: 'pointer' }}>
             +{remainingCount} more...
           </span>
         )}
       </div>,
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
         <fetcher.Form method="POST">
           <input type="hidden" name="type" value="gallery" />
           <input type="hidden" name="id" value={gallery.id} />
           <input type="hidden" name="status" value="approved" />
-          <button type="submit" style={{ border: 'none', cursor: 'pointer', borderRadius: '50%', padding: '1px' }} title="Approve">
+          <button type="submit" title="Approve">
             <Icon source={CheckIcon} color="success" />
           </button>
         </fetcher.Form>
-
         <fetcher.Form method="POST">
           <input type="hidden" name="type" value="gallery" />
           <input type="hidden" name="id" value={gallery.id} />
           <input type="hidden" name="status" value="declined" />
-          <button type="submit" style={{ border: 'none', cursor: 'pointer', borderRadius: '50%', padding: '1px' }} title="Decline">
+          <button type="submit" title="Decline">
             <Icon source={XIcon} color="critical" />
           </button>
         </fetcher.Form>
-
         <fetcher.Form method="POST">
           <input type="hidden" name="actionType" value="delete" />
           <input type="hidden" name="id" value={gallery.id} />
-          <button type="submit" style={{ border: 'none', cursor: 'pointer' }} title="Delete">
+          <button type="submit" title="Delete">
             <Icon source={DeleteIcon} color="critical" />
           </button>
         </fetcher.Form>
@@ -185,69 +177,44 @@ export default function CustomerGallery() {
     ];
   });
 
-  const handleApproveImage = (imageId) => {
-    fetcher.submit({ type: 'image', id: imageId, status: 'approved' }, { method: 'POST' });
-  };
+  const handleApproveImage = (id) =>
+    fetcher.submit({ type: 'image', id, status: 'approved' }, { method: 'POST' });
+  const handleDeclineImage = (id) =>
+    fetcher.submit({ type: 'image', id, status: 'declined' }, { method: 'POST' });
 
-  const handleDeclineImage = (imageId) => {
-    fetcher.submit({ type: 'image', id: imageId, status: 'declined' }, { method: 'POST' });
-  };
-
-  const nextImage = () => {
-    if (activeGallery && activeImageIndex < activeGallery.images.length - 1) {
-      setActiveImageIndex(activeImageIndex + 1);
-    }
-  };
-
-  const prevImage = () => {
-    if (activeGallery && activeImageIndex > 0) {
-      setActiveImageIndex(activeImageIndex - 1);
-    }
-  };
+  const nextImage = () => activeGallery && setActiveImageIndex(Math.min(activeImageIndex + 1, activeGallery.images.length - 1));
+  const prevImage = () => activeGallery && setActiveImageIndex(Math.max(activeImageIndex - 1, 0));
 
   const currentImage = activeGallery?.images[activeImageIndex];
 
   return (
     <Page title={`Gallery for Customer ID: ${customerId}`}>
+      {/* search */}
       <div style={{ marginBottom: '20px', maxWidth: '400px' }}>
         <TextField
           label="Search galleries"
           labelHidden
           placeholder="Search by event name..."
           value={searchTerm}
-          onChange={(value) => {
-            setSearchTerm(value);
-            setCurrentPage(1); // reset to first page when searching
-          }}
+          onChange={(value) => { setSearchTerm(value); setCurrentPage(1); }}
           autoComplete="off"
           clearButton
-          onClearButtonClick={() => {
-            setSearchTerm('');
-            setCurrentPage(1);
-          }}
+          onClearButtonClick={() => { setSearchTerm(''); setCurrentPage(1); }}
         />
       </div>
 
+      {/* table */}
       {filteredGalleries.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '10px' }}>
-            No galleries found
-          </h2>
+          <h2>No galleries found</h2>
         </div>
       ) : (
         <>
           <DataTable
-            columnContentTypes={['text', 'text', 'text', 'text', 'text']}
-           headings={[
-  <div style={{ textAlign: 'center' }}>#</div>,
-  <div >Name</div>,
-  <div style={{ textAlign: 'center' }}>Gallery Status</div>,
-  <div style={{ textAlign: 'center' }}>Images</div>,
-  <div style={{ textAlign: 'center' }}>Actions</div>
-]}
+            columnContentTypes={['text','text','text','text','text']}
+            headings={['#','Name','Gallery Status','Images','Actions']}
             rows={rows}
           />
-
           <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
             <Pagination
               hasPrevious={currentPage > 1}
@@ -259,119 +226,30 @@ export default function CustomerGallery() {
         </>
       )}
 
-{currentImage && (
-  <Modal
-    open
-    onClose={() => setActiveGallery(null)}
-    title={
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <span>Image Details</span>
-        {activeGallery.images.length > 1 && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Button
-              plain
-              icon={ArrowLeftIcon}
-              onClick={prevImage}
-              disabled={activeImageIndex === 0}
-            />
-            <Button
-              plain
-              icon={ArrowRightIcon}
-              onClick={nextImage}
-              disabled={activeImageIndex === activeGallery.images.length - 1}
-            />
+      {/* image modal */}
+      {currentImage && (
+        <Modal open onClose={() => setActiveGallery(null)} title="Image Details" large>
+          <div style={{ padding: '20px' }}>
+            <Modal.Section>
+              <TextContainer>
+                <div style={{ textAlign: 'center' }}>
+                  <img src={currentImage.url} alt="Full" style={{ maxWidth: '100%', maxHeight: '600px' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                  <Badge tone={currentImage.status === "approved" ? "success" :
+                              currentImage.status === "declined" ? "critical" : "warning"}>
+                    {capitalizeFirst(currentImage.status)}
+                  </Badge>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => handleApproveImage(currentImage.id)}>Approve</button>
+                    <button onClick={() => handleDeclineImage(currentImage.id)}>Decline</button>
+                  </div>
+                </div>
+              </TextContainer>
+            </Modal.Section>
           </div>
-        )}
-      </div>
-    }
-    large
-  >
-    <div style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '8px' }}>
-      <Modal.Section>
-        <TextContainer>
-          <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <img
-              src={currentImage.url}
-              alt="Full size"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '600px',
-                borderRadius: '8px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-              }}
-            />
-          </div>
-
-          {/* Bottom section with status left, buttons right */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: '20px',
-            }}
-          >
-            <Badge
-              tone={
-                currentImage.status === "approved" ? "success" :
-                currentImage.status === "declined" ? "critical" :
-                "warning"
-              }
-            >
-              {currentImage.status.charAt(0).toUpperCase() + currentImage.status.slice(1)}
-            </Badge>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                size="slim"
-                onClick={() => handleApproveImage(currentImage.id)}
-                style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: 'linear-gradient(to bottom, #dc5050ff, #7a2323ff)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '6px 12px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      boxShadow: '4px',
-                      textDecorationSkip: 'none',
-                    }}
-              >
-                Approve
-              </button>
-              <button
-                size="slim"
-                onClick={() => handleDeclineImage(currentImage.id)}
-                 style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: 'linear-gradient(to bottom, #3d3c3cff, #111111)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '6px 12px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      boxShadow: '4px',
-                      textDecorationSkip: 'none',
-                    }}
-              >
-                Decline
-              </button>
-            </div>
-          </div>
-        </TextContainer>
-      </Modal.Section>
-    </div>
-  </Modal>
-)}
-
-
-
+        </Modal>
+      )}
     </Page>
   );
 }
