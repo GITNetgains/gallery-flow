@@ -1,7 +1,11 @@
 import { json } from '@remix-run/node';
-import db from '../db.server';
 import { cors } from "remix-utils/cors";
+import db from '../db.server';
+import { authenticate } from "../shopify.server";
 
+// -----------------------------
+// Helpers
+// -----------------------------
 const extractId = (id) => id?.split('/').pop();
 
 const matchContentId = (storedId, queryId) => {
@@ -9,6 +13,36 @@ const matchContentId = (storedId, queryId) => {
   return extractId(storedId) === extractId(queryId);
 };
 
+async function getSession(request) {
+  let shopFromBody;
+
+  if (request.method !== "GET") {
+    try {
+      const formData = await request.clone().formData();
+      shopFromBody = formData.get("shop");
+    } catch {}
+  } else {
+    const url = new URL(request.url);
+    shopFromBody = url.searchParams.get("shop");
+  }
+
+  let session;
+  try {
+    const authResult = await authenticate.admin(request);
+    session = authResult.session;
+  } catch {
+    if (!shopFromBody) throw new Error("No shop param provided for DB fallback");
+    const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
+    if (!sessionRecord) throw new Error("No DB session found");
+    session = { shop: sessionRecord.shop, accessToken: sessionRecord.accessToken };
+  }
+
+  return session;
+}
+
+// -----------------------------
+// Loader
+// -----------------------------
 export const loader = async ({ request }) => {
   try {
     const url = new URL(request.url);
@@ -16,26 +50,35 @@ export const loader = async ({ request }) => {
     const contentType = url.searchParams.get("contentType");
 
     if (!contentId || !contentType) {
-      const response = json({ error: "Missing parameters" }, { status: 400 });
-      return await cors(request, response, {
-        origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-      });
+      return await cors(
+        request,
+        json({ success: false, error: "Missing parameters" }, { status: 400 }),
+        { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
+      );
     }
 
-    const setting = await db.setting.findUnique({ where: { id: "global-setting" } });
-    console.log("🔧 addEventEnabled:", setting?.addEventEnabled);
+    const session = await getSession(request);
+    const shop = session.shop;
+
+    const setting = await db.setting.findUnique({ where: { shop } });
+    if (!setting) {
+      return await cors(
+        request,
+        json({ success: false, error: "Setting not found for shop" }, { status: 404 }),
+        { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
+      );
+    }
 
     let images = [];
 
-    if (setting?.addEventEnabled) {
-      // ✅ Proper way: filter approved gallery + approved images
+    if (setting.addEventEnabled) {
+      // ✅ Event galleries only
       const events = await db.event.findMany({
+        where: { shop },
         include: {
           GalleryUpload: {
-            include: {
-              images: true,
-            },
+            where: { status: "approved" },
+            include: { images: { where: { status: "approved" } } },
           },
         },
       });
@@ -45,29 +88,23 @@ export const loader = async ({ request }) => {
       );
 
       if (matchingEvent) {
-        const approvedGalleries = matchingEvent.GalleryUpload.filter(g => g.status === "approved");
-        images = approvedGalleries.flatMap(upload =>
-          upload.images
-            .filter(img => img.status === "approved")
-            .map(img => ({
-              url: img.url,
-              alt: img.altText || `Gallery image ${img.id}`
-            }))
+        images = matchingEvent.GalleryUpload.flatMap(upload =>
+          upload.images.map(img => ({
+            url: img.url,
+            alt: img.altText || `Gallery image ${img.id}`,
+          }))
         );
-        console.log("✅ Event gallery images found:", images.length);
-      } else {
-        console.log("❌ No matching event found for:", contentId);
       }
-
     } else {
-      // ✅ Global gallery mode
+      // ✅ Global galleries only
       const galleries = await db.galleryUpload.findMany({
         where: {
+          shop,
           itemType: contentType,
           status: "approved",
         },
         include: {
-          images: true,
+          images: { where: { status: "approved" } },
         },
       });
 
@@ -76,40 +113,37 @@ export const loader = async ({ request }) => {
       );
 
       images = matchingGalleries.flatMap(gallery =>
-        gallery.images
-          .filter(img => img.status === "approved")
-          .map(img => ({
-            url: img.url,
-            alt: img.altText || `Gallery image ${img.id}`
-          }))
+        gallery.images.map(img => ({
+          url: img.url,
+          alt: img.altText || `Gallery image ${img.id}`,
+        }))
       );
-      console.log(`✅ Global gallery images found:`, images.length);
     }
 
     if (!images.length) {
-      const response = json({
-        approved: false,
-        message: "No approved gallery uploads found",
-        debug: { contentId, contentType, addEventEnabled: setting?.addEventEnabled }
-      });
-      return await cors(request, response, {
-        origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-      });
+      return await cors(
+        request,
+        json({
+          success: false,
+          approved: false,
+          message: "No approved gallery uploads found",
+          debug: { contentId, contentType, addEventEnabled: setting.addEventEnabled },
+        }),
+        { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
+      );
     }
 
-    const response = json({ approved: true, images });
-    return await cors(request, response, {
-      origin: "*",
-      methods: ["GET", "POST", "OPTIONS"],
-    });
-
+    return await cors(
+      request,
+      json({ success: true, approved: true, images }),
+      { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
+    );
   } catch (error) {
-    console.error("Gallery loader error:", error);
-    const response = json({ error: "Server error", details: error.message }, { status: 500 });
-    return await cors(request, response, {
-      origin: "*",
-      methods: ["GET", "POST", "OPTIONS"],
-    });
+    console.error("❌ Gallery loader error:", error);
+    return await cors(
+      request,
+      json({ success: false, error: error.message || "Server error" }, { status: 500 }),
+      { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
+    );
   }
 };
