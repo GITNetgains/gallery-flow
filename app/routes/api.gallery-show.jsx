@@ -29,69 +29,67 @@ export const loader = async ({ request }) => {
     let images = [];
 
     if (setting?.addEventEnabled) {
-      // ✅ Event galleries only
+      // ✅ Proper way: filter approved gallery + approved images
       const events = await db.event.findMany({
         include: {
           GalleryUpload: {
-            where: { status: "approved" },
-            include: { images: { where: { status: "approved" } } }
-          }
-        }
+            include: {
+              images: true,
+            },
+          },
+        },
       });
 
       const matchingEvent = events.find(event =>
         matchContentId(event.shopifyId, contentId)
       );
 
-      if (matchingEvent && matchingEvent.GalleryUpload?.length) {
-        images = matchingEvent.GalleryUpload.flatMap(upload =>
-          upload.images.map(img => ({
-            url: img.url,
-            alt: img.altText || `Gallery image ${img.id}`
-          }))
+      if (matchingEvent) {
+        const approvedGalleries = matchingEvent.GalleryUpload.filter(g => g.status === "approved");
+        images = approvedGalleries.flatMap(upload =>
+          upload.images
+            .filter(img => img.status === "approved")
+            .map(img => ({
+              url: img.url,
+              alt: img.altText || `Gallery image ${img.id}`
+            }))
         );
         console.log("✅ Event gallery images found:", images.length);
       } else {
-        console.log("❌ No matching event gallery found for:", contentId);
+        console.log("❌ No matching event found for:", contentId);
       }
 
     } else {
-      // ✅ Global galleries only
+      // ✅ Global gallery mode
       const galleries = await db.galleryUpload.findMany({
         where: {
           itemType: contentType,
           status: "approved",
         },
         include: {
-          images: { where: { status: "approved" } },
+          images: true,
         },
       });
-
-      console.log("🔍 Fetched global galleries:", galleries.length);
 
       const matchingGalleries = galleries.filter(gallery =>
         matchContentId(gallery.itemId, contentId)
       );
 
-      if (matchingGalleries.length) {
-        images = matchingGalleries.flatMap(gallery =>
-          gallery.images.map(img => ({
+      images = matchingGalleries.flatMap(gallery =>
+        gallery.images
+          .filter(img => img.status === "approved")
+          .map(img => ({
             url: img.url,
             alt: img.altText || `Gallery image ${img.id}`
           }))
-        );
-        console.log(`✅ Global gallery images found for ${contentType}:`, images.length);
-      } else {
-        console.log(`❌ No global gallery found for:`, contentId, contentType);
-      }
+      );
+      console.log(`✅ Global gallery images found:`, images.length);
     }
 
     if (!images.length) {
       const response = json({
         approved: false,
-        message: setting?.addEventEnabled
-          ? "No approved event gallery uploads found"
-          : "No approved global gallery uploads found",
+        message: "No approved gallery uploads found",
         debug: { contentId, contentType, addEventEnabled: setting?.addEventEnabled }
       });
       return await cors(request, response, {
