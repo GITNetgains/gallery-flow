@@ -149,19 +149,24 @@
 </style>
 
 <script>
-  {% case block.settings.gallery_type %}
-    {% when 'product' %}
-      window.contentId = "{{ product.id }}";
-    {% when 'collection' %}
-      window.contentId = "{{ collection.id }}";
-    {% when 'article' %}
-      window.contentId = "{{ article.id }}";
-    {% when 'page' %}
-      window.contentId = "{{ page.id }}";
-    {% else %}
-      window.contentId = "";
-  {% endcase %}
-  window.contentType = "{{ block.settings.gallery_type | default: 'product' }}";
+{% if product %}
+  window.contentId = "{{ product.id }}";
+  window.contentType = "product";
+{% elsif collection %}
+  window.contentId = "{{ collection.id }}";
+  window.contentType = "collection";
+{% elsif article %}
+  window.contentId = "{{ article.id }}";
+  window.contentType = "article";
+{% elsif page %}
+  window.contentId = "{{ page.id }}";
+  window.contentType = "page";
+{% else %}
+  window.contentId = "";
+  window.contentType = "product"; // fallback
+{% endif %}
+
+ 
   window.galleryLayout = "{{ block.settings.gallery_layout | default: 'grid' }}";
 
   document.addEventListener('DOMContentLoaded', async () => {
