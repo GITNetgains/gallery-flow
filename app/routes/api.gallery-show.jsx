@@ -18,14 +18,43 @@ const matchContentId = (storedId, queryId) => {
 export const loader = async ({ request }) => {
   try {
     const url = new URL(request.url);
-    const shop = url.searchParams.get("shop");
+    let shop = url.searchParams.get("shop"); // optional now
     const contentId = url.searchParams.get("contentId");
     const contentType = url.searchParams.get("contentType");
 
-    if (!shop || !contentId || !contentType) {
+    if (!contentId || !contentType) {
       return await cors(
         request,
         json({ success: false, error: "Missing parameters" }, { status: 400 }),
+        { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
+      );
+    }
+
+    // 🔍 Try to detect shop if not provided
+    if (!shop) {
+      // First, check if event exists with this contentId
+      const event = await db.event.findFirst({
+        where: { shopifyId: { contains: extractId(contentId) } },
+        select: { shop: true },
+      });
+      if (event) {
+        shop = event.shop;
+      } else {
+        // Else check galleryUpload
+        const gallery = await db.galleryUpload.findFirst({
+          where: { itemId: contentId },
+          select: { shop: true },
+        });
+        if (gallery) {
+          shop = gallery.shop;
+        }
+      }
+    }
+
+    if (!shop) {
+      return await cors(
+        request,
+        json({ success: false, error: "Could not resolve shop" }, { status: 400 }),
         { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
       );
     }
