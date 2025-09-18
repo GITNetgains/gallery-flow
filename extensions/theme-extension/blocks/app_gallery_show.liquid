@@ -150,17 +150,26 @@
 
 <script>
   {% case block.settings.gallery_type %}
-    {% when 'product' %}
+  {% when 'product' %}
+    {% if product %}
       window.contentId = "{{ product.id }}";
-    {% when 'collection' %}
+    {% endif %}
+  {% when 'collection' %}
+    {% if collection %}
       window.contentId = "{{ collection.id }}";
-    {% when 'article' %}
+    {% endif %}
+  {% when 'article' %}
+    {% if article %}
       window.contentId = "{{ article.id }}";
-    {% when 'page' %}
+    {% endif %}
+  {% when 'page' %}
+    {% if page %}
       window.contentId = "{{ page.id }}";
-    {% else %}
-      window.contentId = "";
-  {% endcase %}
+    {% endif %}
+  {% else %}
+    window.contentId = "";
+{% endcase %}
+
   window.contentType = "{{ block.settings.gallery_type | default: 'product' }}";
   window.galleryLayout = "{{ block.settings.gallery_layout | default: 'grid' }}";
 
