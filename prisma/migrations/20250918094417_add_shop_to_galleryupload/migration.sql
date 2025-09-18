@@ -42,6 +42,7 @@ CREATE TABLE "public"."GalleryUpload" (
     "itemName" TEXT,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "shop" TEXT NOT NULL,
 
     CONSTRAINT "GalleryUpload_pkey" PRIMARY KEY ("id")
 );

@@ -7,7 +7,7 @@ async function paginateQuery(shop, accessToken, query, extractFn) {
   let allItems = [];
 
   while (hasNextPage) {
-    const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+    const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
       method: "POST",
       headers: {
         "X-Shopify-Access-Token": accessToken,

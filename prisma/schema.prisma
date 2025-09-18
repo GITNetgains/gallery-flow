@@ -55,6 +55,7 @@ model GalleryUpload {
   status     String   @default("pending")
   createdAt  DateTime @default(now())
   images     Image[]   
+  shop       String 
 }
 
 model Image {

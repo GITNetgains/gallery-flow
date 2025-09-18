@@ -28,7 +28,7 @@ function getCorsOptions(request) {
 
   if (origin && origin.endsWith(".myshopify.com")) {
     return {
-      origin, // echo back the requesting Shopify store
+      origin,
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type"],
     };
@@ -51,9 +51,7 @@ async function getSession(request) {
     try {
       const formData = await request.clone().formData();
       shopFromBody = formData.get("shop");
-    } catch {
-      // ignore
-    }
+    } catch {}
   } else {
     const url = new URL(request.url);
     shopFromBody = url.searchParams.get("shop");
@@ -63,26 +61,11 @@ async function getSession(request) {
   try {
     const authResult = await authenticate.admin(request);
     session = authResult.session;
-    console.log(
-      `[${new Date().toISOString()}] ✅ Auth success for shop: ${session.shop}`
-    );
-  } catch (authError) {
-    console.error(
-      `[${new Date().toISOString()}] ❌ Auth failed, fallback to DB: ${authError.message}`
-    );
-
+  } catch {
     if (!shopFromBody) throw new Error("No shop param provided for DB fallback");
-
-    const sessionRecord = await db.session.findFirst({
-      where: { shop: shopFromBody },
-    });
+    const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
     if (!sessionRecord) throw new Error("No DB session found");
-
-    session = {
-      shop: sessionRecord.shop,
-      accessToken: sessionRecord.accessToken,
-      scope: sessionRecord.scope,
-    };
+    session = { shop: sessionRecord.shop, accessToken: sessionRecord.accessToken };
   }
 
   return session;
@@ -102,8 +85,8 @@ export const loader = async ({ request }) => {
 
   try {
     const session = await getSession(request);
-    const shop = session?.shop;
-    const accessToken = session?.accessToken;
+    const shop = session.shop;
+    const accessToken = session.accessToken;
 
     if (!shop || !accessToken) {
       return await cors(
@@ -123,7 +106,7 @@ export const loader = async ({ request }) => {
     }
 
     if (!setting.addEventEnabled) {
-      // ❌ Events disabled → return products/blogs/pages/collections
+      // Events disabled → return products/blogs/pages/collections
       const [products, blogs, collections, pages] = await Promise.all([
         fetchProducts(shop, accessToken),
         fetchBlogs(shop, accessToken),
@@ -144,9 +127,9 @@ export const loader = async ({ request }) => {
         getCorsOptions(request)
       );
     } else {
-      // ✅ Events enabled → return past events only
+      // Events enabled → return past events **for this shop only**
       const pastEvents = await db.event.findMany({
-        where: { date: { lt: new Date() } },
+        where: { date: { lt: new Date() }, shop },
         orderBy: { date: "desc" },
       });
 
@@ -200,13 +183,7 @@ export const action = async ({ request }) => {
     const accessToken = session.accessToken;
 
     const setting = await db.setting.findUnique({ where: { shop } });
-    if (!setting) {
-      return await cors(
-        request,
-        json({ success: false, error: "Global setting not found" }, { status: 500 }),
-        getCorsOptions(request)
-      );
-    }
+    if (!setting) throw new Error("Global setting not found");
 
     const formData = await request.formData();
     const customerId = formData.get("customerId");
@@ -218,10 +195,7 @@ export const action = async ({ request }) => {
     if (!customerId || !email || !eventId || files.length === 0) {
       return await cors(
         request,
-        json(
-          { success: false, error: "Missing required fields or files." },
-          { status: 400 }
-        ),
+        json({ success: false, error: "Missing required fields or files." }, { status: 400 }),
         getCorsOptions(request)
       );
     }
@@ -232,19 +206,17 @@ export const action = async ({ request }) => {
       name,
       email,
       status: "Pending",
+      shop, // 🔥 save shop
       eventId: null,
       itemId: null,
       itemType: null,
       itemName: null,
     };
 
-    // -----------------------------
-    // 🔀 Decide Upload Target
-    // -----------------------------
     if (setting.addEventEnabled) {
-      // ✅ Events enabled → only allow past events
+      // Only allow past events for this shop
       const eventRecord = await db.event.findUnique({ where: { id: eventId } });
-      if (!eventRecord || new Date(eventRecord.date) >= new Date()) {
+      if (!eventRecord || eventRecord.shop !== shop || new Date(eventRecord.date) >= new Date()) {
         return await cors(
           request,
           json({ success: false, error: "You can only upload for past events." }, { status: 403 }),
@@ -253,15 +225,9 @@ export const action = async ({ request }) => {
       }
       galleryData.eventId = eventId;
     } else {
-      // ❌ Events disabled → allow global uploads
+      // Events disabled → allow products/blogs/pages/collections
       const type = determineItemType(eventId);
-      if (type === "unknown") {
-        return await cors(
-          request,
-          json({ success: false, error: "Invalid upload target" }, { status: 400 }),
-          getCorsOptions(request)
-        );
-      }
+      if (type === "unknown") return json({ success: false, error: "Invalid upload target" }, { status: 400 });
 
       let itemName = "";
       if (type === "product") {
@@ -270,9 +236,7 @@ export const action = async ({ request }) => {
         itemName = matched?.title || "Product";
       } else if (type === "article") {
         const blogs = await fetchBlogs(shop, accessToken);
-        const allArticles = blogs.flatMap((b) =>
-          b.articles.map((a) => ({ ...a, blogTitle: b.title }))
-        );
+        const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
         const matched = allArticles.find((a) => a.id === eventId);
         itemName = matched?.title || "Article";
       } else if (type === "collection") {
@@ -290,16 +254,13 @@ export const action = async ({ request }) => {
       galleryData.itemName = itemName;
     }
 
-    // -----------------------------
-    // 💾 Save Gallery Upload
-    // -----------------------------
+    // Save gallery
     const newGallery = await db.galleryUpload.create({ data: galleryData });
 
-    // 🔥 Upload images to Cloudinary
+    // Upload images to Cloudinary
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
-
       const uploadRes = await cloudinary.v2.uploader.upload(base64, {
         folder: "shopify-gallery",
         public_id: `${Date.now()}-${file.name}`,
@@ -323,10 +284,7 @@ export const action = async ({ request }) => {
     console.error("❌ Upload gallery error:", error);
     return await cors(
       request,
-      json(
-        { success: false, error: "Server error. Please try again." },
-        { status: 500 }
-      ),
+      json({ success: false, error: "Server error. Please try again." }, { status: 500 }),
       getCorsOptions(request)
     );
   }
