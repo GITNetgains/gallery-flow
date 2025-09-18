@@ -1,12 +1,11 @@
-import { json } from "@remix-run/node";
+import { json } from '@remix-run/node';
 import { cors } from "remix-utils/cors";
-import db from "../db.server";
-import { authenticate } from "../shopify.server";
+import db from '../db.server';
 
 // -----------------------------
 // Helpers
 // -----------------------------
-const extractId = (id) => id?.split("/").pop();
+const extractId = (id) => id?.split('/').pop();
 
 const matchContentId = (storedId, queryId) => {
   if (!storedId || !queryId) return false;
@@ -19,20 +18,17 @@ const matchContentId = (storedId, queryId) => {
 export const loader = async ({ request }) => {
   try {
     const url = new URL(request.url);
+    const shop = url.searchParams.get("shop");
     const contentId = url.searchParams.get("contentId");
     const contentType = url.searchParams.get("contentType");
 
-    if (!contentId || !contentType) {
+    if (!shop || !contentId || !contentType) {
       return await cors(
         request,
         json({ success: false, error: "Missing parameters" }, { status: 400 }),
         { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
       );
     }
-
-    // ✅ Always authenticate (no DB fallback)
-    const { session } = await authenticate.admin(request);
-    const shop = session.shop;
 
     const setting = await db.setting.findUnique({ where: { shop } });
     if (!setting) {
@@ -57,13 +53,13 @@ export const loader = async ({ request }) => {
         },
       });
 
-      const matchingEvent = events.find((event) =>
+      const matchingEvent = events.find(event =>
         matchContentId(event.shopifyId, contentId)
       );
 
       if (matchingEvent) {
-        images = matchingEvent.GalleryUpload.flatMap((upload) =>
-          upload.images.map((img) => ({
+        images = matchingEvent.GalleryUpload.flatMap(upload =>
+          upload.images.map(img => ({
             url: img.url,
             alt: img.altText || `Gallery image ${img.id}`,
           }))
@@ -82,12 +78,12 @@ export const loader = async ({ request }) => {
         },
       });
 
-      const matchingGalleries = galleries.filter((gallery) =>
+      const matchingGalleries = galleries.filter(gallery =>
         matchContentId(gallery.itemId, contentId)
       );
 
-      images = matchingGalleries.flatMap((gallery) =>
-        gallery.images.map((img) => ({
+      images = matchingGalleries.flatMap(gallery =>
+        gallery.images.map(img => ({
           url: img.url,
           alt: img.altText || `Gallery image ${img.id}`,
         }))
@@ -101,11 +97,7 @@ export const loader = async ({ request }) => {
           success: false,
           approved: false,
           message: "No approved gallery uploads found",
-          debug: {
-            contentId,
-            contentType,
-            addEventEnabled: setting.addEventEnabled,
-          },
+          debug: { shop, contentId, contentType, addEventEnabled: setting.addEventEnabled },
         }),
         { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
       );
