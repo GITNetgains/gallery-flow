@@ -1,44 +1,17 @@
-import { json } from '@remix-run/node';
+import { json } from "@remix-run/node";
 import { cors } from "remix-utils/cors";
-import db from '../db.server';
+import db from "../db.server";
 import { authenticate } from "../shopify.server";
 
 // -----------------------------
 // Helpers
 // -----------------------------
-const extractId = (id) => id?.split('/').pop();
+const extractId = (id) => id?.split("/").pop();
 
 const matchContentId = (storedId, queryId) => {
   if (!storedId || !queryId) return false;
   return extractId(storedId) === extractId(queryId);
 };
-
-async function getSession(request) {
-  let shopFromBody;
-
-  if (request.method !== "GET") {
-    try {
-      const formData = await request.clone().formData();
-      shopFromBody = formData.get("shop");
-    } catch {}
-  } else {
-    const url = new URL(request.url);
-    shopFromBody = url.searchParams.get("shop");
-  }
-
-  let session;
-  try {
-    const authResult = await authenticate.admin(request);
-    session = authResult.session;
-  } catch {
-    if (!shopFromBody) throw new Error("No shop param provided for DB fallback");
-    const sessionRecord = await db.session.findFirst({ where: { shop: shopFromBody } });
-    if (!sessionRecord) throw new Error("No DB session found");
-    session = { shop: sessionRecord.shop, accessToken: sessionRecord.accessToken };
-  }
-
-  return session;
-}
 
 // -----------------------------
 // Loader
@@ -57,7 +30,8 @@ export const loader = async ({ request }) => {
       );
     }
 
-    const session = await getSession(request);
+    // ✅ Always authenticate (no DB fallback)
+    const { session } = await authenticate.admin(request);
     const shop = session.shop;
 
     const setting = await db.setting.findUnique({ where: { shop } });
@@ -83,13 +57,13 @@ export const loader = async ({ request }) => {
         },
       });
 
-      const matchingEvent = events.find(event =>
+      const matchingEvent = events.find((event) =>
         matchContentId(event.shopifyId, contentId)
       );
 
       if (matchingEvent) {
-        images = matchingEvent.GalleryUpload.flatMap(upload =>
-          upload.images.map(img => ({
+        images = matchingEvent.GalleryUpload.flatMap((upload) =>
+          upload.images.map((img) => ({
             url: img.url,
             alt: img.altText || `Gallery image ${img.id}`,
           }))
@@ -108,12 +82,12 @@ export const loader = async ({ request }) => {
         },
       });
 
-      const matchingGalleries = galleries.filter(gallery =>
+      const matchingGalleries = galleries.filter((gallery) =>
         matchContentId(gallery.itemId, contentId)
       );
 
-      images = matchingGalleries.flatMap(gallery =>
-        gallery.images.map(img => ({
+      images = matchingGalleries.flatMap((gallery) =>
+        gallery.images.map((img) => ({
           url: img.url,
           alt: img.altText || `Gallery image ${img.id}`,
         }))
@@ -127,7 +101,11 @@ export const loader = async ({ request }) => {
           success: false,
           approved: false,
           message: "No approved gallery uploads found",
-          debug: { contentId, contentType, addEventEnabled: setting.addEventEnabled },
+          debug: {
+            contentId,
+            contentType,
+            addEventEnabled: setting.addEventEnabled,
+          },
         }),
         { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
       );
