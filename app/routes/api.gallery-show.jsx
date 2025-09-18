@@ -29,9 +29,6 @@ export const loader = async ({ request }) => {
     let images = [];
 
     if (setting?.addEventEnabled) {
-      // -----------------------------
-      // 📌 Events enabled → only return event gallery images
-      // -----------------------------
       const events = await db.event.findMany({
         include: {
           GalleryUpload: {
@@ -58,9 +55,6 @@ export const loader = async ({ request }) => {
       }
 
     } else {
-      // -----------------------------
-      // 📌 Events disabled → only return general gallery uploads
-      // -----------------------------
       const galleries = await db.galleryUpload.findMany({
         where: {
           itemType: contentType,
@@ -78,6 +72,10 @@ export const loader = async ({ request }) => {
       );
 
       console.log("🔍 Matching galleries found count:", matchingGalleries.length);
+      console.log("🔍 contentId:", contentId);
+      console.log("🔍 contentType param:", contentType);
+      console.log("🔍 DB itemTypes found:", galleries.map(g => g.itemType));
+      console.log("🔍 DB itemIds found:", galleries.map(g => g.itemId));
 
       if (matchingGalleries.length) {
         images = matchingGalleries.flatMap(gallery =>
