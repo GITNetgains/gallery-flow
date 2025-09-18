@@ -9,7 +9,7 @@ import {
   fetchPages,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
-import { authenticate } from "../shopify.server"; // ✅ make sure you import your authenticate util
+import { authenticate } from "../shopify.server"; // ✅ Shopify auth util
 
 // -----------------------------
 // Cloudinary Config
@@ -34,7 +34,6 @@ function getCorsOptions(request) {
     };
   }
 
-  // Block everything else
   return {
     origin: false,
     methods: ["GET", "POST", "OPTIONS"],
@@ -102,7 +101,7 @@ export const loader = async ({ request }) => {
   }
 
   try {
-    const session = await getSession(request); // 👈 may throw if no shop
+    const session = await getSession(request);
     const shop = session?.shop;
     const accessToken = session?.accessToken;
 
@@ -114,10 +113,7 @@ export const loader = async ({ request }) => {
       );
     }
 
-    const setting = await db.setting.findUnique({
-      where: { shop },
-    });
-
+    const setting = await db.setting.findUnique({ where: { shop } });
     if (!setting) {
       return await cors(
         request,
@@ -127,6 +123,7 @@ export const loader = async ({ request }) => {
     }
 
     if (!setting.addEventEnabled) {
+      // ❌ Events disabled → return products/blogs/pages/collections
       const [products, blogs, collections, pages] = await Promise.all([
         fetchProducts(shop, accessToken),
         fetchBlogs(shop, accessToken),
@@ -147,6 +144,7 @@ export const loader = async ({ request }) => {
         getCorsOptions(request)
       );
     } else {
+      // ✅ Events enabled → return past events only
       const pastEvents = await db.event.findMany({
         where: { date: { lt: new Date() } },
         orderBy: { date: "desc" },
@@ -201,23 +199,11 @@ export const action = async ({ request }) => {
     const shop = session.shop;
     const accessToken = session.accessToken;
 
-    // 🔒 Check global setting before allowing uploads
-    const setting = await db.setting.findUnique({
-      where: { shop },
-    });
-
+    const setting = await db.setting.findUnique({ where: { shop } });
     if (!setting) {
       return await cors(
         request,
         json({ success: false, error: "Global setting not found" }, { status: 500 }),
-        getCorsOptions(request)
-      );
-    }
-
-    if (!setting.addEventEnabled) {
-      return await cors(
-        request,
-        json({ success: false, error: "Uploads are disabled for this store." }, { status: 403 }),
         getCorsOptions(request)
       );
     }
@@ -240,8 +226,6 @@ export const action = async ({ request }) => {
       );
     }
 
-    let eventRecord = await db.event.findUnique({ where: { id: eventId } });
-
     let galleryData = {
       id: uuidv4(),
       customerId,
@@ -254,20 +238,32 @@ export const action = async ({ request }) => {
       itemName: null,
     };
 
-    if (eventRecord) {
+    // -----------------------------
+    // 🔀 Decide Upload Target
+    // -----------------------------
+    if (setting.addEventEnabled) {
+      // ✅ Events enabled → only allow past events
+      const eventRecord = await db.event.findUnique({ where: { id: eventId } });
+      if (!eventRecord || new Date(eventRecord.date) >= new Date()) {
+        return await cors(
+          request,
+          json({ success: false, error: "You can only upload for past events." }, { status: 403 }),
+          getCorsOptions(request)
+        );
+      }
       galleryData.eventId = eventId;
     } else {
+      // ❌ Events disabled → allow global uploads
       const type = determineItemType(eventId);
       if (type === "unknown") {
         return await cors(
           request,
-          json({ success: false, error: "Invalid item type" }, { status: 400 }),
+          json({ success: false, error: "Invalid upload target" }, { status: 400 }),
           getCorsOptions(request)
         );
       }
 
       let itemName = "";
-
       if (type === "product") {
         const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
@@ -294,14 +290,14 @@ export const action = async ({ request }) => {
       galleryData.itemName = itemName;
     }
 
-    console.log("🔍 Uploading Gallery Data:", galleryData);
-
+    // -----------------------------
+    // 💾 Save Gallery Upload
+    // -----------------------------
     const newGallery = await db.galleryUpload.create({ data: galleryData });
 
-    // 🔥 Upload each image to Cloudinary
+    // 🔥 Upload images to Cloudinary
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
       const uploadRes = await cloudinary.v2.uploader.upload(base64, {
