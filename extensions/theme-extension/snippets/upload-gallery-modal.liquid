@@ -145,6 +145,7 @@
 
   function closeUploadModal() {
     if (modalOverlay) modalOverlay.style.display = "none";
+    resetFormAndMessage();
   }
 
   uploadButton?.addEventListener("click", function () {
@@ -155,8 +156,17 @@
       }, 1500);
     } else {
       if (modalOverlay) modalOverlay.style.display = "flex";
+       resetFormAndMessage();
     }
   });
+
+  function resetFormAndMessage() {
+  if (form) form.reset();
+  if (message) {
+    message.textContent = "";
+    message.classList.remove("Polaris-Text--success", "Polaris-Text--critical");
+  }
+}
 
   closeModalBtn?.addEventListener("click", closeUploadModal);
   modalOverlay?.addEventListener("click", function (e) {
