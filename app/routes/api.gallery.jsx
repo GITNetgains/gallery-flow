@@ -261,10 +261,13 @@ export const action = async ({ request }) => {
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
-      const uploadRes = await cloudinary.v2.uploader.upload(base64, {
-        folder: "shopify-gallery",
-        public_id: `${Date.now()}-${file.name}`,
-      });
+     const uploadRes = await cloudinary.v2.uploader.upload(base64, {
+  folder: "shopify-gallery",
+  public_id: `${Date.now()}-${file.name}`,
+  quality: "auto", // 👈 Add automatic quality compression
+  fetch_format: "auto", // 👈 Add automatic format selection
+  width: 1920, // 👈 Resize to a maximum width (adjust as needed)
+});
 
       await db.image.create({
         data: {
