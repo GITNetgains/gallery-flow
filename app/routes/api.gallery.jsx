@@ -26,7 +26,7 @@ cloudinary.v2.config({
 function getCorsOptions(request) {
   const origin = request.headers.get("Origin");
 
- if (origin && (origin.endsWith(".myshopify.com") || origin.endsWith("admin.shopify.com"))) {
+  if (origin && origin.endsWith(".myshopify.com")) {
     return {
       origin,
       methods: ["GET", "POST", "OPTIONS"],
@@ -35,7 +35,7 @@ function getCorsOptions(request) {
   }
 
   return {
-    origin: false,
+    origin: "*",
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   };
@@ -75,15 +75,14 @@ async function getSession(request) {
 // Loader with CORS
 // -----------------------------
 export const loader = async ({ request }) => {
- const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { headers, status: 200 });
+  if (request.method === "OPTIONS") {
+    return await cors(
+      request,
+      new Response(null, { status: 204 }),
+      getCorsOptions(request)
+    );
   }
+
   try {
     const session = await getSession(request);
     const shop = session.shop;
@@ -170,15 +169,14 @@ function determineItemType(shopifyId) {
 // Action with Cloudinary Upload
 // -----------------------------
 export const action = async ({ request }) => {
-const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { headers, status: 200 });
+  if (request.method === "OPTIONS") {
+    return await cors(
+      request,
+      new Response(null, { status: 204 }),
+      getCorsOptions(request)
+    );
   }
+
   try {
     const session = await getSession(request);
     const shop = session.shop;
