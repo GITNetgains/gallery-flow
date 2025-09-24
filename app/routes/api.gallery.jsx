@@ -75,14 +75,15 @@ async function getSession(request) {
 // Loader with CORS
 // -----------------------------
 export const loader = async ({ request }) => {
-  if (request.method === "OPTIONS") {
-    return await cors(
-      request,
-      new Response(null, { status: 204 }),
-      getCorsOptions(request)
-    );
-  }
+ const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers, status: 200 });
+  }
   try {
     const session = await getSession(request);
     const shop = session.shop;
@@ -169,14 +170,15 @@ function determineItemType(shopifyId) {
 // Action with Cloudinary Upload
 // -----------------------------
 export const action = async ({ request }) => {
-  if (request.method === "OPTIONS") {
-    return await cors(
-      request,
-      new Response(null, { status: 204 }),
-      getCorsOptions(request)
-    );
-  }
+const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers, status: 200 });
+  }
   try {
     const session = await getSession(request);
     const shop = session.shop;
