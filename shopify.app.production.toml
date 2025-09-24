@@ -3,7 +3,7 @@
 client_id = "6640b1b2966a05f33380b8fb7f23dfe3"
 name = "Gallery-flow"
 handle = "gallery-flow"
-application_url = "https://gallery-flow-two.vercel.app/"
+application_url = "https://gallery-flow-five.vercel.app/"
 embedded = true
 
 [build]
@@ -27,7 +27,7 @@ scopes = "write_products,read_products,read_content,read_themes,read_customers, 
 
 
 [auth]
-redirect_urls = ["https://gallery-flow-two.vercel.app/auth/callback", "https://gallery-flow-two.vercel.app/auth/shopify/callback", "https://gallery-flow-two.vercel.app/api/auth/callback"]
+redirect_urls = ["https://gallery-flow-five.vercel.app/auth/callback", "https://gallery-flow-five.vercel.app/auth/shopify/callback", "https://gallery-flow-five.vercel.app/api/auth/callback"]
 
 [pos]
 embedded = false

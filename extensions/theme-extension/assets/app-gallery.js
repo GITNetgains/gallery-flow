@@ -19,7 +19,7 @@
 
 //   try {
 //     // Fetch all approved images from your API
-//     const res = await fetch("https://gallery-flow-two.vercel.app/api/galleries");
+//     const res = await fetch("https://gallery-flow-five.vercel.app/api/galleries");
 //     const data = await res.json();
 
 //     const images = data.images || [];
@@ -46,7 +46,7 @@
 
 //     images.forEach((img) => {
 //       const imageEl = document.createElement("img");
-//       imageEl.src = `https://gallery-flow-two.vercel.app${img.url}`;
+//       imageEl.src = `https://gallery-flow-five.vercel.app${img.url}`;
 //       imageEl.alt = `Uploaded image ${img.id}`;
 //       imageEl.style.width = "100%";
 //       imageEl.style.borderRadius = "8px";

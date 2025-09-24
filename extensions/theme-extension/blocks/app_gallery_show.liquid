@@ -183,7 +183,7 @@
     const loaderStart = Date.now();
 
     try {
-      const apiUrl = `https://gallery-flow-two.vercel.app/api/gallery-show?contentId=${window.contentId}&contentType=${window.contentType}`;
+      const apiUrl = `https://gallery-flow-five.vercel.app/api/gallery-show?contentId=${window.contentId}&contentType=${window.contentType}`;
       const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' }, mode: 'cors' });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -208,7 +208,7 @@
               ${data.images.map(img => `
                 <div class="swiper-slide">
                   <img 
-                    src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
+                    src="${img.url.startsWith('/') ? 'https://gallery-flow-five.vercel.app' + img.url : img.url}" 
                     alt="${img.alt || 'Gallery image'}" 
                     loading="lazy"
                   >
@@ -256,7 +256,7 @@
         galleryDiv.innerHTML = data.images.map(img => `
           <div>
             <img 
-              src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
+              src="${img.url.startsWith('/') ? 'https://gallery-flow-five.vercel.app' + img.url : img.url}" 
               alt="${img.alt || 'Gallery image'}" 
               loading="lazy"
             >
@@ -286,7 +286,7 @@
         galleryDiv.innerHTML = data.images.map(img => `
           <div>
             <img 
-              src="${img.url.startsWith('/') ? 'https://gallery-flow-two.vercel.app' + img.url : img.url}" 
+              src="${img.url.startsWith('/') ? 'https://gallery-flow-five.vercel.app' + img.url : img.url}" 
               alt="${img.alt || 'Gallery image'}" 
               loading="lazy"
             >

@@ -51,7 +51,7 @@
       <div class="Polaris-Modal__BodyWrapper">
 
         <div class="Polaris-Modal__Body">
-        
+
           <form id="upload-gallery-form" enctype="multipart/form-data">
             <input type="hidden" name="customerId" id="upload-customer-id" />
             <input type="hidden" name="name" id="upload-customer-name" />
@@ -188,7 +188,7 @@
     const formData = new FormData(form);
 
     try {
-      const res = await fetch(`https://gallery-flow-two.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`, {
+      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`, {
         method: "POST",
         body: formData,
       });
@@ -225,7 +225,7 @@
 
   async function fetchAllItems() {
     try {
-      const res = await fetch(`https://gallery-flow-two.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`);
+      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`);
       const json = await res.json();
 
       if (!json.success) return;
