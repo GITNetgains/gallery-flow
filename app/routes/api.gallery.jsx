@@ -26,7 +26,7 @@ cloudinary.v2.config({
 function getCorsOptions(request) {
   const origin = request.headers.get("Origin");
 
-  if (origin && origin.endsWith(".myshopify.com")) {
+ if (origin && (origin.endsWith(".myshopify.com") || origin.endsWith("admin.shopify.com"))) {
     return {
       origin,
       methods: ["GET", "POST", "OPTIONS"],

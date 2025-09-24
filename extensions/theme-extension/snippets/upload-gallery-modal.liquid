@@ -182,7 +182,7 @@
     const formData = new FormData(form);
 
     try {
-      const res = await fetch(`https://gallery-flow-two.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`, {
+      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`, {
         method: "POST",
         body: formData,
       });
@@ -219,7 +219,7 @@
 
   async function fetchAllItems() {
     try {
-      const res = await fetch(`https://gallery-flow-two.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`);
+      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`);
       const json = await res.json();
 
       if (!json.success) return;
