@@ -69,7 +69,7 @@
                 </select>
               </div>
 
-              <!-- Event Dropdown -->
+              <!-- Event/Product Dropdown -->
               <div class="Polaris-FormLayout__Item">
                 <select
                   name="eventId"
@@ -139,11 +139,24 @@ const buttonSpinner = submitButton.querySelector(".btn-spinner");
 
 let allItems = [];
 
+// ✅ Include orders + line items
 window.customerData = {
   id: {{ customer.id | json }},
   email: {{ customer.email | json }},
   first_name: {{ customer.first_name | json }},
-  last_name: {{ customer.last_name | json }}
+  last_name: {{ customer.last_name | json }},
+  orders: [
+    {% for order in customer.orders %}
+      {
+        id: {{ order.id }},
+        line_items: [
+          {% for line_item in order.line_items %}
+            { variant_id: {{ line_item.variant_id }}, product_id: {{ line_item.product_id }} },
+          {% endfor %}
+        ]
+      },
+    {% endfor %}
+  ]
 };
 
 if (modalOverlay) document.body.appendChild(modalOverlay);
@@ -181,9 +194,48 @@ modalOverlay?.addEventListener("click", function (e) {
   if (e.target === modalOverlay) closeUploadModal();
 });
 
-// ✅ Submit form with spinner
+// ✅ Check purchase of product
+function hasPurchasedProduct(productId) {
+  if (!window.customerData?.orders) return false;
+  for (const order of window.customerData.orders) {
+    for (const li of order.line_items) {
+      if (li.product_id === productId) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// 🟠 When product/event changes
+eventSelect?.addEventListener("change", function () {
+  const selectedOption = eventSelect.selectedOptions[0];
+  const productId = selectedOption?.getAttribute("data-product-id");
+
+  if (productId && !hasPurchasedProduct(parseInt(productId))) {
+    message.textContent = "⚠️ You cannot upload images for this product because you haven’t purchased it.";
+    message.classList.add("Polaris-Text--critical");
+    submitButton.disabled = true;
+  } else {
+    message.textContent = "";
+    message.classList.remove("Polaris-Text--critical");
+    submitButton.disabled = false;
+  }
+});
+
+// ✅ Submit form with purchase validation
 form?.addEventListener("submit", async function (e) {
   e.preventDefault();
+
+  const selectedOption = eventSelect.selectedOptions[0];
+  const productId = selectedOption?.getAttribute("data-product-id");
+
+  if (productId && !hasPurchasedProduct(parseInt(productId))) {
+    message.textContent = "⚠️ You cannot upload because you haven’t purchased this product.";
+    message.classList.add("Polaris-Text--critical");
+    return;
+  }
+
   message.textContent = "";
   message.classList.remove("Polaris-Text--success", "Polaris-Text--critical");
 
@@ -241,7 +293,7 @@ async function fetchAllItems() {
 
     if (json.disabled) {
       allItems = [
-        ...json.products.map((p) => ({ id: p.id, name: p.title, type: "product" })),
+        ...json.products.map((p) => ({ id: p.id, name: p.title, type: "product", product_id: p.id })),
         ...json.blogs.flatMap((b) =>
           b.articles.map((a) => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))
         ),
@@ -254,6 +306,7 @@ async function fetchAllItems() {
         name: ev.name,
         date: ev.date,
         type: ev.type,
+        product_id: ev.product_id || null
       }));
     }
   } catch (error) {
@@ -278,6 +331,7 @@ function populateEventDropdown(items) {
     option.value = item.id;
     option.textContent =
       item.name + (item.date ? ` (${new Date(item.date).toLocaleDateString()})` : "");
+    if (item.product_id) option.setAttribute("data-product-id", item.product_id);
     eventSelect.appendChild(option);
   });
 }
