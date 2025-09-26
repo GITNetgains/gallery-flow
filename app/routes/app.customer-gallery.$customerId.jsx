@@ -154,7 +154,7 @@ export default function CustomerGallery() {
           <input type="hidden" name="type" value="gallery" />
           <input type="hidden" name="id" value={gallery.id} />
           <input type="hidden" name="status" value="approved" />
-          <button type="submit" title="Approve">
+          <button type="submit" title="Approve gallery (images can be approved separately)">
             <Icon source={CheckIcon} color="success" />
           </button>
         </fetcher.Form>
@@ -162,7 +162,7 @@ export default function CustomerGallery() {
           <input type="hidden" name="type" value="gallery" />
           <input type="hidden" name="id" value={gallery.id} />
           <input type="hidden" name="status" value="declined" />
-          <button type="submit" title="Decline">
+          <button type="submit" title="decline gallery (images can be declined separately)">
             <Icon source={XIcon} color="critical" />
           </button>
         </fetcher.Form>
@@ -227,29 +227,138 @@ export default function CustomerGallery() {
       )}
 
       {/* image modal */}
-      {currentImage && (
-        <Modal open onClose={() => setActiveGallery(null)} title="Image Details" large>
-          <div style={{ padding: '20px' }}>
-            <Modal.Section>
-              <TextContainer>
-                <div style={{ textAlign: 'center' }}>
-                  <img src={currentImage.url} alt="Full" style={{ maxWidth: '100%', maxHeight: '600px' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                  <Badge tone={currentImage.status === "approved" ? "success" :
-                              currentImage.status === "declined" ? "critical" : "warning"}>
-                    {capitalizeFirst(currentImage.status)}
-                  </Badge>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => handleApproveImage(currentImage.id)}>Approve</button>
-                    <button onClick={() => handleDeclineImage(currentImage.id)}>Decline</button>
-                  </div>
-                </div>
-              </TextContainer>
-            </Modal.Section>
+{currentImage && (
+  <Modal open onClose={() => setActiveGallery(null)} title="Image" large>
+    <Modal.Section>
+      <div style={{ position: 'relative', textAlign: 'center', padding: '20px 0' }}>
+        {/* Image */}
+        <img
+          src={currentImage.url}
+          alt="Full"
+          style={{
+            maxWidth: '100%',
+            maxHeight: '600px',
+            borderRadius: '8px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+          }}
+        />
+
+        {/* Left/Right Arrows */}
+        {activeGallery.images.length > 1 && (
+  <>
+    {/* Left Arrow */}
+    <button
+      onClick={prevImage}
+      disabled={activeImageIndex === 0}
+      style={{
+        position: 'absolute',
+        top: '50%',
+        left: '10px',
+        transform: 'translateY(-50%)',
+        zIndex: 20,
+        backgroundColor: 'rgba(120, 118, 118, 0.5)',
+        border: 'none',
+        borderRadius: '50%',
+        width: '30px',
+        height: '30px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: activeImageIndex === 0 ? 'not-allowed' : 'pointer',
+      }}
+    >
+      <Icon source={ArrowLeftIcon} color="base" />
+    </button>
+
+    {/* Right Arrow */}
+    <button
+      onClick={nextImage}
+      disabled={activeImageIndex === activeGallery.images.length - 1}
+      style={{
+        position: 'absolute',
+        top: '50%',
+        right: '10px',
+        transform: 'translateY(-50%)',
+        zIndex: 20,
+        backgroundColor: 'rgba(71, 71, 71, 0.5)',
+        border: 'none',
+        borderRadius: '50%',
+        width: '30px',
+        height: '30px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor:
+          activeImageIndex === activeGallery.images.length - 1
+            ? 'not-allowed'
+            : 'pointer',
+      }}
+    >
+      <Icon source={ArrowRightIcon} color="base" />
+    </button>
+  </>
+)}
+
+
+        {/* Bottom Actions */}
+        <div
+          style={{
+            marginTop: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0 20px',
+          }}
+        >
+          {/* Approve / Decline */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Button
+              primary
+              size="slim"
+              disabled={currentImage.status === 'approved'}
+              onClick={() => {
+                const newGallery = { ...activeGallery };
+                newGallery.images[activeImageIndex].status = 'approved';
+                setActiveGallery(newGallery);
+                fetcher.submit({ type: 'image', id: currentImage.id, status: 'approved' }, { method: 'POST' });
+              }}
+            >
+              Approve
+            </Button>
+            <Button
+              destructive
+              size="slim"
+              disabled={currentImage.status === 'declined'}
+              onClick={() => {
+                const newGallery = { ...activeGallery };
+                newGallery.images[activeImageIndex].status = 'declined';
+                setActiveGallery(newGallery);
+                fetcher.submit({ type: 'image', id: currentImage.id, status: 'declined' }, { method: 'POST' });
+              }}
+            >
+              Decline
+            </Button>
           </div>
-        </Modal>
-      )}
+
+          {/* Status */}
+          <Badge
+            tone={
+              currentImage.status === 'approved'
+                ? 'success'
+                : currentImage.status === 'declined'
+                ? 'critical'
+                : 'warning'
+            }
+          >
+            {capitalizeFirst(currentImage.status)}
+          </Badge>
+        </div>
+      </div>
+    </Modal.Section>
+  </Modal>
+)}
+
+
     </Page>
   );
 }

@@ -1,6 +1,7 @@
 import { json } from '@remix-run/node';
 import { cors } from "remix-utils/cors";
 import db from '../db.server';
+import { authenticate } from '../shopify.server';
 
 // -----------------------------
 // Helpers
@@ -18,7 +19,6 @@ const matchContentId = (storedId, queryId) => {
 export const loader = async ({ request }) => {
   try {
     const url = new URL(request.url);
-    let shop = url.searchParams.get("shop"); // optional now
     const contentId = url.searchParams.get("contentId");
     const contentType = url.searchParams.get("contentType");
 
@@ -30,31 +30,14 @@ export const loader = async ({ request }) => {
       );
     }
 
-    // 🔍 Try to detect shop if not provided
-    if (!shop) {
-      // First, check if event exists with this contentId
-      const event = await db.event.findFirst({
-        where: { shopifyId: { contains: extractId(contentId) } },
-        select: { shop: true },
-      });
-      if (event) {
-        shop = event.shop;
-      } else {
-        // Else check galleryUpload
-        const gallery = await db.galleryUpload.findFirst({
-          where: { itemId: contentId },
-          select: { shop: true },
-        });
-        if (gallery) {
-          shop = gallery.shop;
-        }
-      }
-    }
-
+    // 🔒 Get shop from authenticated admin session
+    const { session } = await authenticate.admin(request);
+    const shop = session.shop;
+     console.log("shop",shop)
     if (!shop) {
       return await cors(
         request,
-        json({ success: false, error: "Could not resolve shop" }, { status: 400 }),
+        json({ success: false, error: "Could not resolve shop from session" }, { status: 400 }),
         { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
       );
     }
@@ -71,7 +54,7 @@ export const loader = async ({ request }) => {
     let images = [];
 
     if (setting.addEventEnabled) {
-      // ✅ Event galleries only
+      // Event galleries only
       const events = await db.event.findMany({
         where: { shop },
         include: {
@@ -95,7 +78,7 @@ export const loader = async ({ request }) => {
         );
       }
     } else {
-      // ✅ Global galleries only
+      // Global galleries only
       const galleries = await db.galleryUpload.findMany({
         where: {
           shop,
@@ -137,6 +120,7 @@ export const loader = async ({ request }) => {
       json({ success: true, approved: true, images }),
       { origin: "*", methods: ["GET", "POST", "OPTIONS"] }
     );
+
   } catch (error) {
     console.error("❌ Gallery loader error:", error);
     return await cors(
