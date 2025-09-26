@@ -36,7 +36,7 @@ model Session {
 model Setting {
   id              String   @id @default(cuid())
   shop            String   @unique
-  addEventEnabled Boolean  @default(true)
+  addEventEnabled Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
