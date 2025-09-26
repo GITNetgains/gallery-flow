@@ -19,7 +19,9 @@
 <!-- Swiper CDN -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-
+<script>
+  const shop = "{{ shop.permanent_domain }}"; // Add this
+</script>
 <style>
 
   .gallery-grid div {
@@ -183,12 +185,13 @@
     const loaderStart = Date.now();
 
     try {
-      const apiUrl = `https://gallery-flow-five.vercel.app/api/gallery-show?contentId=${window.contentId}&contentType=${window.contentType}`;
+      const apiUrl = `https://gallery-flow-five.vercel.app/api/gallery-show?shop=${shop}&contentId=${window.contentId}&contentType=${window.contentType}`;
       const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' }, mode: 'cors' });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
+      
 
       if (!data.approved || !data.images?.length) {
         throw new Error(data.message || "No approved images available");
