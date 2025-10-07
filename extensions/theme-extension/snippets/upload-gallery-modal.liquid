@@ -1,228 +1,319 @@
-  <div id="upload-gallery-modal-overlay" class="Polaris-Backdrop" style="
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.7);
-    z-index: 9999;
+<!-- Inject shop and customer data safely -->
+<script id="galleryflow-data" type="application/json">
+{
+  "shop": {{ shop.permanent_domain | json }},
+  "customer": {
+    "id": {{ customer.id | json }},
+    "email": {{ customer.email | json }},
+    "first_name": {{ customer.first_name | json }},
+    "last_name": {{ customer.last_name | json }}
+  },
+ "orders": [
+  {% for order in customer.orders %}
+    {
+      "id": {{ order.id }},
+      "line_items": [
+        {% for item in order.line_items %}
+          {
+            "product_id": {{ item.product_id }},
+            "variant_id": {{ item.variant_id }}
+          }{% unless forloop.last %},{% endunless %}
+        {% endfor %}
+      ]
+    }{% unless forloop.last %},{% endunless %}
+  {% endfor %}
+]
+}
+</script>
+
+<!-- Gallery Upload Modal -->
+<div id="galleryflow-modal-overlay" class="Polaris-Backdrop" style="
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+">
+  <div class="Polaris-Modal-Dialog__Container" style="
+    display: flex;
     justify-content: center;
     align-items: center;
+    height: 100%;
+    width: 100%;
   ">
-    <div class="Polaris-Modal-Dialog__Container" style="
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100%;
-      width: 100%;
+    <div class="Polaris-Modal-Dialog" style="
+      position: relative;
+      background: white;
+      border-radius: 8px;
+      max-width: 450px;
+      width: 90%;
+      padding: 40px 30px 30px 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     ">
-      <div class="Polaris-Modal-Dialog" style="
-        position: relative;
-        background: white;
-        border-radius: 8px;
-        max-width: 450px;
-        width: 90%;
-        padding: 40px 30px 30px 30px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      ">
-        <!-- Close X button -->
-        <button id="close-upload-gallery-modal" type="button" style="
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          background: none;
-          border: none;
-          font-size: 24px;
-          font-weight: bold;
-          color: #333;
-          cursor: pointer;
-        ">&times;</button>
+      <button id="galleryflow-close-modal" type="button" style="
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+        cursor: pointer;
+      ">&times;</button>
 
-        <!-- Modal Header -->
-        <div class="Polaris-Modal-Header" style="text-align: center; margin-bottom: 20px;">
-          <h2 class="Polaris-Modal-Header__Title" style="font-size: 20px; font-weight: 600;">
-            Upload Gallery
-          </h2>
-        </div>
+      <div class="Polaris-Modal-Header" style="text-align: center; margin-bottom: 20px;">
+        <h2 style="font-size: 20px; font-weight: 600;">Upload Gallery</h2>
+      </div>
 
-        <div class="Polaris-Modal__BodyWrapper">
-          <div class="Polaris-Modal__Body">
-            <form id="upload-gallery-form" enctype="multipart/form-data">
-              <input type="hidden" name="customerId" id="upload-customer-id" />
-              <input type="hidden" name="name" id="upload-customer-name" />
-              <input type="hidden" name="email" id="upload-customer-email" />
-              <input type="hidden" name="shop" value="{{ shop.permanent_domain }}" />
+      <div class="Polaris-Modal__BodyWrapper">
+        <div class="Polaris-Modal__Body">
+          <form id="galleryflow-form" enctype="multipart/form-data">
+            <input type="hidden" name="customerId" id="galleryflow-customer-id" />
+            <input type="hidden" name="name" id="galleryflow-customer-name" />
+            <input type="hidden" name="email" id="galleryflow-customer-email" />
+            <input type="hidden" name="shop" id="galleryflow-shop" />
 
-              <div class="Polaris-FormLayout" style="display: flex; flex-direction: column; gap: 15px;">
-                <!-- Type Dropdown -->
-                <div class="Polaris-FormLayout__Item">
-                  <select
-                    id="upload-type"
-                    required
-                    class="Polaris-Select"
-                    style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;"
-                  >
-                    <option value="">Select Type</option>
-                    <option value="product">Product</option>
-                    <option value="article">Blog</option>
-                    <option value="page">Page</option>
-                    <option value="collection">Collection</option>
-                  </select>
-                </div>
-
-                <!-- Event/Product Dropdown -->
-                <div class="Polaris-FormLayout__Item">
-                  <select
-                    name="eventId"
-                    id="upload-event"
-                    required
-                    class="Polaris-Select"
-                    style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;"
-                  >
-                    <option value="">Select Event</option>
-                  </select>
-                </div>
-
-                <!-- File Upload -->
-                <div class="Polaris-FormLayout__Item">
-                  <input
-                    type="file"
-                    name="images"
-                    id="upload-gallery-images"
-                    multiple
-                    accept="image/*"
-                    class="Polaris-TextField__Input"
-                    style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;"
-                  />
-                </div>
-
-                <!-- Submit Button with Spinner -->
-                <div class="Polaris-FormLayout__Item">
-                  <button
-                    type="submit"
-                    id="upload-gallery-submit"
-                    class="Polaris-Button Polaris-Button--primary"
-                    style="background:{{ button_bg_color }}; color:{{ button_text_color }}; padding: 12px 20px; border: none; border-radius: 6px; width: 100%; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 10px; transition: all 0.3s ease;"
-                  >
-                    <span class="btn-text">Submit</span>
-                    <span class="btn-spinner" style="display:none; width:16px; height:16px; border:2px solid #fff; border-top:2px solid rgba(255,255,255,0.3); border-radius:50%; animation: spin 0.8s linear infinite;"></span>
-                  </button>
-                </div>
-
-                <!-- Success/Error Message -->
-                <p id="upload-gallery-message" class="Polaris-Text--success Polaris-Text--center" style="margin-top: 10px;"></p>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+              <div>
+                <select id="galleryflow-type" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="">Select Type</option>
+                  <option value="product">Product</option>
+                  <option value="article">Blog</option>
+                  <option value="page">Page</option>
+                  <option value="collection">Collection</option>
+                </select>
               </div>
-            </form>
-          </div>
+
+              <div>
+                <select name="eventId" id="galleryflow-event" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="">Select Event</option>
+                </select>
+              </div>
+
+              <div>
+                <input type="file" name="images" id="galleryflow-images" multiple accept="image/*"
+                  style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px;" />
+              </div>
+
+              <div>
+                <button type="submit" id="galleryflow-submit" style="
+                  background:{{ button_bg_color }};
+                  color:{{ button_text_color }};
+                  padding: 12px 20px;
+                  border: none;
+                  border-radius: 6px;
+                  width: 100%;
+                  font-weight: bold;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  gap: 10px;
+                  transition: all 0.3s ease;
+                ">
+                  <span class="galleryflow-btn-text">Submit</span>
+                  <span class="galleryflow-btn-spinner" style="display:none; width:16px; height:16px; border:2px solid #fff; border-top:2px solid rgba(255,255,255,0.3); border-radius:50%; animation: spin 0.8s linear infinite;"></span>
+                </button>
+              </div>
+
+              <p id="galleryflow-message" style="margin-top:10px; text-align:center;"></p>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   </div>
+</div>
 
-  <style>
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  </style>
+<style>
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+
 <script>
-const modalOverlay = document.getElementById("upload-gallery-modal-overlay");
-const closeModalBtn = document.getElementById("close-upload-gallery-modal");
-const uploadButton = document.getElementById("upload-gallery-button");
-const form = document.getElementById("upload-gallery-form");
-const message = document.getElementById("upload-gallery-message");
-const typeSelect = document.getElementById("upload-type");
-const eventSelect = document.getElementById("upload-event");
-const submitButton = document.getElementById("upload-gallery-submit");
-const buttonText = submitButton.querySelector(".btn-text");
-const buttonSpinner = submitButton.querySelector(".btn-spinner");
+(function() {
+  const dataEl = document.getElementById("galleryflow-data");
+  const modalOverlay = document.getElementById("galleryflow-modal-overlay");
+  const closeModalBtn = document.getElementById("galleryflow-close-modal");
+  const uploadButton = document.getElementById("upload-gallery-button"); // trigger button outside modal
+  const form = document.getElementById("galleryflow-form");
+  const message = document.getElementById("galleryflow-message");
+  const typeSelect = document.getElementById("galleryflow-type");
+  const eventSelect = document.getElementById("galleryflow-event");
+  const submitButton = document.getElementById("galleryflow-submit");
+  const buttonText = submitButton.querySelector(".galleryflow-btn-text");
+  const buttonSpinner = submitButton.querySelector(".galleryflow-btn-spinner");
+  const shopField = document.getElementById("galleryflow-shop");
+  let allItems = [];
 
-let allItems = [];
+  const appData = dataEl ? JSON.parse(dataEl.textContent) : null;
+  if (!appData) return;
 
-// Customer data including orders
-window.customerData = {
-  id: {{ customer.id | json }},
-  email: {{ customer.email | json }},
-  first_name: {{ customer.first_name | json }},
-  last_name: {{ customer.last_name | json }},
-  orders: [
-    {% for order in customer.orders %}
-    {
-      id: {{ order.id }},
-      line_items: [
-        {% for line_item in order.line_items %}
-        { variant_id: {{ line_item.variant_id }}, product_id: {{ line_item.product_id }} },
-        {% endfor %}
-      ]
-    },
-    {% endfor %}
-  ]
-};
+  shopField.value = appData.shop || "";
 
-// Append modal overlay to body
-if (modalOverlay) document.body.appendChild(modalOverlay);
+  // Populate hidden fields safely
+  const customer = appData.customer || {};
+  document.getElementById("galleryflow-customer-id").value = customer.id || "";
+  document.getElementById("galleryflow-customer-name").value = `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
+  document.getElementById("galleryflow-customer-email").value = customer.email || "";
 
-// Populate customer fields and fetch items
-populateCustomerFieldsFromWindow();
-fetchAllItems();
+  // Append modal to body
+  if (modalOverlay) document.body.appendChild(modalOverlay);
 
-// Open modal
-uploadButton?.addEventListener("click", () => {
-  if (!window.customerData?.email) {
-    showToast("⚠️ Please log in to upload images.");
-    setTimeout(() => { window.location.href = "/account/login"; }, 1500);
-  } else {
-    if (modalOverlay) modalOverlay.style.display = "flex";
-    resetFormAndMessage();
+  // Show modal
+  uploadButton?.addEventListener("click", function () {
+    if (!customer.email) {
+      showToast("⚠️ Please log in to upload images.");
+      setTimeout(() => {
+        window.location.href = "/account/login";
+      }, 1500);
+    } else {
+      if (modalOverlay) modalOverlay.style.display = "flex";
+      resetForm();
+    }
+  });
+
+  // Close modal
+  closeModalBtn?.addEventListener("click", closeModal);
+  modalOverlay?.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
+
+  function closeModal() {
+    modalOverlay.style.display = "none";
+    resetForm();
   }
-});
 
-// Close modal
-closeModalBtn?.addEventListener("click", closeUploadModal);
-modalOverlay?.addEventListener("click", e => { if (e.target === modalOverlay) closeUploadModal(); });
-
-function closeUploadModal() {
-  if (modalOverlay) modalOverlay.style.display = "none";
-  resetFormAndMessage();
-}
-
-function resetFormAndMessage() {
-  if (form) form.reset();
-  if (message) {
+  function resetForm() {
+    form.reset();
     message.textContent = "";
-    message.classList.remove("Polaris-Text--success", "Polaris-Text--critical");
+    message.style.color = "";
   }
+ function extractNumericId(gid) {
+  if (!gid) return 0;
+  // Convert to string first
+  gid = String(gid);
+  const parts = gid.split("/");
+  return parseInt(parts[parts.length - 1]) || 0;
 }
 
-// Normalize ID (handles Shopify GID and string)
-function normalizeProductId(id) {
-  if (!id) return null;
-  if (typeof id === "string") {
-    const match = id.match(/(\d+)$/);
-    return match ? match[1] : id;
-  }
-  return String(id);
+  function hasPurchased(productId, variantId) {
+    console.log(productId,variantId)
+  if (!appData.orders || !Array.isArray(appData.orders)) return false;
+
+  return appData.orders.some(order =>
+    order.line_items.some(item => {
+      const pid = extractNumericId(item.product_id || 0);
+      const vid = extractNumericId(item.variant_id || 0);
+      return (pid && pid === productId) || (vid && vid === variantId);
+    })
+  );
 }
 
-// Check if customer purchased a variant
-function hasPurchasedProduct(variantId) {
-  if (!variantId) return false;
-  const normalizedId = normalizeProductId(variantId);
 
-  if (!window.customerData?.orders) return false;
 
-  for (const order of window.customerData.orders) {
-    for (const li of order.line_items) {
-      if (normalizeProductId(li.variant_id) === normalizedId) return true;
+  // Fetch items
+  async function fetchAllItems() {
+    try {
+      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`);
+      const json = await res.json();
+      if (!json.success) return;
+      if (json.disabled) {
+        allItems = [
+          ...json.products.map(p => ({ id: p.id, name: p.title, type: "product" })),
+          ...json.blogs.flatMap(b => b.articles.map(a => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))),
+          ...json.collections.map(c => ({ id: c.id, name: c.title, type: "collection" })),
+          ...json.pages.map(p => ({ id: p.id, name: p.title, type: "page" }))
+        ];
+      } else {
+        allItems = json.events.map(ev => ({
+          id: ev.id,
+          name: ev.name,
+          date: ev.date,
+          type: ev.type,
+        }));
+      }
+    } catch (err) {
+      console.error("Error fetching items:", err);
     }
   }
-  return false;
-}
+  fetchAllItems();
+  
 
-// Event change - check purchase
+  // Populate event dropdown
+  typeSelect?.addEventListener("change", function () {
+    const selectedType = this.value;
+    eventSelect.innerHTML = '<option value="">Select Event</option>';
+    if (!selectedType) return;
+    const filtered = allItems.filter(item => item.type === selectedType);
+    filtered.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item.id;
+        if (item.type === "product") {
+    opt.dataset.productId = String(item.id); // assume this is the product ID
+    opt.dataset.variantId = "";      // if not available
+    console.log("hyy",opt.dataset.productId,opt.dataset.variantId)
+  } else {
+    opt.dataset.productId = "";
+    opt.dataset.variantId = "";
+  }
+       
+      opt.textContent = item.name + (item.date ? ` (${new Date(item.date).toLocaleDateString()})` : "");
+      eventSelect.appendChild(opt);
+    });
+  });
 
-    console.error("Upload error:", error);
+  // Submit form
+  form?.addEventListener("submit", async e => {
+  e.preventDefault();
+  message.textContent = "";
+  submitButton.disabled = true;
+  buttonText.style.display = "none";
+  buttonSpinner.style.display = "inline-block";
+
+  const formData = new FormData(form);
+
+  // Get selected option & IDs safely
+  const selectedOption = eventSelect.selectedOptions[0];
+  const productId = extractNumericId(selectedOption?.dataset.productId || "0");
+  const variantId = extractNumericId(selectedOption?.dataset.variantId || "0");
+  console.log("productID",productId,"varinatID",variantId)
+
+  // ✅ Purchase check (only if productId or variantId exists)
+  if (productId || variantId) {
+    if (!hasPurchased(productId, variantId)) {
+      message.textContent = "⚠️ You cannot upload for this product because you have not purchased it.";
+      message.style.color = "red";
+      submitButton.disabled = false;
+      buttonText.style.display = "inline";
+      buttonSpinner.style.display = "none";
+      setTimeout(closeModal, 2000);
+      return; // stop upload
+    }
+  }
+
+  // ✅ Proceed with upload if purchased or IDs missing
+  try {
+    const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`, {
+      method: "POST",
+      body: formData
+    });
+    const json = await res.json();
+    if (json.success) {
+      message.textContent = json.message || "Your request is in process.";
+      message.style.color = "green";
+      setTimeout(closeModal, 2000);
+    } else {
+      message.textContent = json.error || "Something went wrong.";
+      message.style.color = "red";
+    }
+  } catch (err) {
+    console.error("Upload error:", err);
     message.textContent = "An error occurred. Please try again.";
-    message.classList.add("Polaris-Text--critical");
+    message.style.color = "red";
   } finally {
     submitButton.disabled = false;
     buttonText.style.display = "inline";
@@ -230,89 +321,30 @@ function hasPurchasedProduct(variantId) {
   }
 });
 
-// Populate hidden customer fields
-function populateCustomerFieldsFromWindow() {
-  if (window.customerData) {
-    document.getElementById("upload-customer-id").value = window.customerData.id || "";
-    document.getElementById("upload-customer-name").value =
-      `${window.customerData.first_name || ""} ${window.customerData.last_name || ""}`.trim();
-    document.getElementById("upload-customer-email").value = window.customerData.email || "";
+
+  // Toast helper
+  function showToast(msg) {
+    const toast = document.createElement("div");
+    toast.textContent = msg;
+    Object.assign(toast.style, {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      background: "#333",
+      color: "#fff",
+      padding: "10px 16px",
+      borderRadius: "6px",
+      zIndex: "99999",
+      fontSize: "14px",
+      opacity: "0",
+      transition: "opacity 0.3s ease"
+    });
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.style.opacity = "1");
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
   }
-}
-
-// Fetch all items/events/products
-async function fetchAllItems() {
-  try {
-    const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop={{ shop.permanent_domain }}`);
-    const json = await res.json();
-    if (!json.success) return;
-
-    if (json.disabled) {
-      allItems = [
-        ...json.products.map(p => ({ id: p.id, name: p.title, type: "product", product_id: p.id })),
-        ...json.blogs.flatMap(b => b.articles.map(a => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))),
-        ...json.collections.map(c => ({ id: c.id, name: c.title, type: "collection" })),
-        ...json.pages.map(p => ({ id: p.id, name: p.title, type: "page" })),
-      ];
-    } else {
-      allItems = json.events.map(ev => ({
-        id: ev.id,
-        name: ev.name,
-        date: ev.date,
-        type: ev.type,
-        product_id: ev.product_id || null
-      }));
-    }
-  } catch (error) {
-    console.error("Error fetching items:", error);
-  }
-}
-
-// Type select - filter event dropdown
-typeSelect?.addEventListener("change", function () {
-  const selectedType = this.value;
-  if (!selectedType) {
-    eventSelect.innerHTML = '<option value="">Select</option>';
-    return;
-  }
-  const filtered = allItems.filter(item => item.type === selectedType);
-  populateEventDropdown(filtered);
-});
-
-// Populate event dropdown
-function populateEventDropdown(items) {
-  eventSelect.innerHTML = '<option value="">Select</option>';
-  items.forEach(item => {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = item.name + (item.date ? ` (${new Date(item.date).toLocaleDateString()})` : "");
-    if (item.product_id) option.setAttribute("data-variant-id", item.product_id); // ✅ use variant id
-    eventSelect.appendChild(option);
-  });
-}
-
-// Toast messages
-function showToast(msg) {
-  const toast = document.createElement("div");
-  toast.textContent = msg;
-  toast.style.position = "fixed";
-  toast.style.bottom = "20px";
-  toast.style.right = "20px";
-  toast.style.background = "#333";
-  toast.style.color = "#fff";
-  toast.style.padding = "10px 16px";
-  toast.style.borderRadius = "6px";
-  toast.style.zIndex = "99999";
-  toast.style.fontSize = "14px";
-  toast.style.opacity = "0";
-  toast.style.transition = "opacity 0.3s ease";
-  document.body.appendChild(toast);
-
-  requestAnimationFrame(() => { toast.style.opacity = "1"; });
-
-  setTimeout(() => {
-    toast.style.opacity = "0";
-    setTimeout(() => toast.remove(), 300);
-  }, 2000);
-}
+})();
 </script>

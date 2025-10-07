@@ -2,13 +2,13 @@
 
 client_id = "6640b1b2966a05f33380b8fb7f23dfe3"
 name = "Gallery-flow"
-handle = "gallery-flow"
-application_url = "https://gallery-flow-five.vercel.app"
+application_url = "https://gallery-flow-five.vercel.app/"
 embedded = true
+handle = "gallery-flow"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-07"
@@ -23,12 +23,14 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_products,read_customers,read_content,read_themes, unauthenticated_read_customers,unauthenticated_write_customers,read_themes,write_themes"
-
-
+scopes = "read_content,read_customers,read_products,read_themes,unauthenticated_read_customers,unauthenticated_write_customers,write_products,write_themes"
 
 [auth]
-redirect_urls = ["https://gallery-flow-five.vercel.app/auth/callback", "https://gallery-flow-five.vercel.app/auth/shopify/callback", "https://gallery-flow-five.vercel.app/api/auth/callback"]
+redirect_urls = [
+  "https://gallery-flow-five.vercel.app/auth/callback",
+  "https://gallery-flow-five.vercel.app/auth/shopify/callback",
+  "https://gallery-flow-five.vercel.app/api/auth/callback"
+]
 
 [pos]
 embedded = false
