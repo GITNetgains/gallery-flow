@@ -81,6 +81,16 @@ export async function action({ request }) {
     });
     return json({ success: true });
   }
+    if (actionType === "togglePurchaseEvent") {
+    const enabled = formData.get("enabled") === "true";
+    await db.setting.upsert({
+      where: { shop },
+      update: { onlyPurchasedItem: enabled },
+      create: { shop, onlyPurchasedItem: enabled },
+    });
+    return json({ success: true });
+  }
+
 
   if (actionType === "createEvent" || actionType === "editEvent") {
     let type = formData.get("type");
@@ -295,6 +305,23 @@ export default function AdminAddEvent() {
           transform: translateX(24px);
         }
       `}</style>
+         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+  <label className="toggle-switch">
+    <input
+      type="checkbox"
+      checked={setting?.onlyPurchasedItem}
+     onChange={() => {
+  const newValue = !setting?.onlyPurchasedItem;
+  setSetting(prev => ({ ...prev, onlyPurchasedItem: newValue })); // update instantly
+  const formData = new FormData();
+  formData.append("actionType", "toggleOnlyPurchasedItem");
+  formData.append("enabled", newValue.toString());
+  fetcher.submit(formData, { method: "POST" });
+}} />
+    <span className="slider"></span>
+  </label>
+  <span>Only allow ordered product to be uploaded</span>
+</div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <button
@@ -339,7 +366,7 @@ export default function AdminAddEvent() {
             value={filterType}
             disabled={!setting?.addEventEnabled}
           />
-
+            
           <label className="toggle-switch">
             <input
               type="checkbox"
