@@ -40,6 +40,7 @@
   <div class="Polaris-Modal-Dialog__Container" style="
     display: flex;
     justify-content: center;
+    
     align-items: center;
     height: 100%;
     width: 100%;
@@ -275,6 +276,15 @@
   buttonSpinner.style.display = "inline-block";
 
   const formData = new FormData(form);
+  const imagesInput = document.getElementById("galleryflow-images");
+  if (!imagesInput.files || imagesInput.files.length === 0) {
+    message.textContent = "⚠️ Please upload at least one image before submitting.";
+    message.style.color = "red";
+    submitButton.disabled = false;
+    buttonText.style.display = "inline";
+    buttonSpinner.style.display = "none";
+    return; // stop submission
+  }
 
   // Get selected option & IDs safely
   const selectedOption = eventSelect.selectedOptions[0];
@@ -290,7 +300,6 @@
       submitButton.disabled = false;
       buttonText.style.display = "inline";
       buttonSpinner.style.display = "none";
-      setTimeout(closeModal, 2000);
       return; // stop upload
     }
   }

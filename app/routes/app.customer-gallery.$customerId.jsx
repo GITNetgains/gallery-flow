@@ -82,12 +82,15 @@ export default function CustomerGallery() {
   const itemsPerPage = 10;
 
   const filteredGalleries = useMemo(() => {
-    if (!searchTerm) return galleries;
-    return galleries.filter(gallery => {
-      const eventName = gallery.event?.name?.toLowerCase() || '';
-      return eventName.includes(searchTerm.toLowerCase());
-    });
-  }, [galleries, searchTerm]);
+  if (!searchTerm?.trim()) return galleries;
+  const lowerSearch = searchTerm.toLowerCase();
+  return galleries.filter(gallery => {
+    const eventName = gallery.event?.name?.toLowerCase() || '';
+    const itemName = gallery.itemName?.toLowerCase() || '';
+    return eventName.includes(lowerSearch) || itemName.includes(lowerSearch);
+  });
+}, [galleries, searchTerm]);
+
 
   const totalPages = Math.ceil(filteredGalleries.length / itemsPerPage);
   const paginatedGalleries = filteredGalleries.slice(
@@ -150,23 +153,51 @@ export default function CustomerGallery() {
         )}
       </div>,
       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-        <fetcher.Form method="POST">
-          <input type="hidden" name="type" value="gallery" />
-          <input type="hidden" name="id" value={gallery.id} />
-          <input type="hidden" name="status" value="approved" />
-          <button type="submit" title="Approve gallery (images can be approved separately)">
-            <Icon source={CheckIcon} color="success" />
-          </button>
-        </fetcher.Form>
-        <fetcher.Form method="POST">
-          <input type="hidden" name="type" value="gallery" />
-          <input type="hidden" name="id" value={gallery.id} />
-          <input type="hidden" name="status" value="declined" />
-          <button type="submit" title="decline gallery (images can be declined separately)">
-            <Icon source={XIcon} color="critical" />
-          </button>
-        </fetcher.Form>
-        <fetcher.Form method="POST">
+       {(() => {
+  const hasApprovedImage = gallery.images.some(img => img.status === 'approved');
+
+  return (
+    <>
+      <fetcher.Form method="POST" replace>
+        <input type="hidden" name="type" value="gallery" />
+        <input type="hidden" name="id" value={gallery.id} />
+        <input type="hidden" name="status" value="approved" />
+        <button
+          type="submit"
+          title={
+            hasApprovedImage
+              ? "Approve gallery"
+              : "At least one image must be approved first"
+          }
+          disabled={!hasApprovedImage}
+          style={{ opacity: hasApprovedImage ? 1 : 0.4, cursor: hasApprovedImage ? 'pointer' : 'not-allowed' }}
+        >
+          <Icon source={CheckIcon} color="success" />
+        </button>
+      </fetcher.Form>
+
+      <fetcher.Form method="POST" replace>
+        <input type="hidden" name="type" value="gallery" />
+        <input type="hidden" name="id" value={gallery.id} />
+        <input type="hidden" name="status" value="declined" />
+        <button
+          type="submit"
+          title={
+            hasApprovedImage
+              ? "Decline gallery"
+              : "At least one image must be approved first"
+          }
+          disabled={!hasApprovedImage}
+          style={{ opacity: hasApprovedImage ? 1 : 0.4, cursor: hasApprovedImage ? 'pointer' : 'not-allowed' }}
+        >
+          <Icon source={XIcon} color="critical" />
+        </button>
+      </fetcher.Form>
+    </>
+  );
+})()}
+
+        <fetcher.Form method="POST" replace>
           <input type="hidden" name="actionType" value="delete" />
           <input type="hidden" name="id" value={gallery.id} />
           <button type="submit" title="Delete">
