@@ -38,6 +38,7 @@ model Setting {
   shop              String   @unique
   addEventEnabled   Boolean  @default(false)
   onlyPurchasedItem Boolean  @default(false)
+  fetchVaraints     Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
