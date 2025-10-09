@@ -9,6 +9,7 @@ import {
   Select,
   Card,
   Icon,
+  Spinner,
 } from '@shopify/polaris';
 import { EditIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import { useState, useEffect } from 'react';
@@ -28,7 +29,7 @@ import { authenticate } from '../shopify.server';
 // Loader
 // -----------------------------
 export async function loader({ request }) {
-  const { session, admin } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const accessToken = session.accessToken;
 
@@ -57,23 +58,21 @@ export async function action({ request }) {
   const accessToken = session.accessToken;
 
   const formData = await request.formData();
-  const actionType = formData.get("actionType");
+  const actionType = formData.get('actionType');
 
-  // Fetch setting
   let setting = await db.setting.findUnique({ where: { shop } });
-
   if (!setting) {
     setting = await db.setting.create({
       data: { shop, addEventEnabled: true },
     });
   }
 
-  if (!setting.addEventEnabled && (actionType === "createEvent" || actionType === "editEvent")) {
-    return json({ success: false, error: "Adding events is currently disabled." }, { status: 403 });
+  if (!setting.addEventEnabled && (actionType === 'createEvent' || actionType === 'editEvent')) {
+    return json({ success: false, error: 'Adding events is currently disabled.' }, { status: 403 });
   }
 
-  if (actionType === "toggleAddEvent") {
-    const enabled = formData.get("enabled") === "true";
+  if (actionType === 'toggleAddEvent') {
+    const enabled = formData.get('enabled') === 'true';
     await db.setting.upsert({
       where: { shop },
       update: { addEventEnabled: enabled },
@@ -81,8 +80,9 @@ export async function action({ request }) {
     });
     return json({ success: true });
   }
-    if (actionType === "togglePurchaseEvent") {
-    const enabled = formData.get("enabled") === "true";
+
+  if (actionType === 'togglePurchaseEvent') {
+    const enabled = formData.get('enabled') === 'true';
     await db.setting.upsert({
       where: { shop },
       update: { onlyPurchasedItem: enabled },
@@ -91,35 +91,33 @@ export async function action({ request }) {
     return json({ success: true });
   }
 
-
-  if (actionType === "createEvent" || actionType === "editEvent") {
-    let type = formData.get("type");
-    const itemId = formData.get("itemId");
-    const date = formData.get("date");
-    const eventId = formData.get("eventId");
+  if (actionType === 'createEvent' || actionType === 'editEvent') {
+    let type = formData.get('type');
+    const itemId = formData.get('itemId');
+    const date = formData.get('date');
+    const eventId = formData.get('eventId');
 
     if (!type || !itemId) {
-      return json({ success: false, error: "Type and item are required" }, { status: 400 });
+      return json({ success: false, error: 'Type and item are required' }, { status: 400 });
     }
 
-    // Fetch item data based on type
     let itemData;
     switch (type) {
-      case "product":
+      case 'product':
         itemData = await fetchSingleProduct(shop, accessToken, itemId);
         break;
-      case "blog": {
+      case 'blog': {
         const blogs = await fetchBlogs(shop, accessToken);
         const article = blogs.flatMap(b => b.articles).find(a => a.id === itemId);
-        if (!article) return json({ success: false, error: "Article not found" }, { status: 400 });
+        if (!article) return json({ success: false, error: 'Article not found' }, { status: 400 });
         itemData = { id: article.id, title: article.title };
-        type = "article"; // store as article
+        type = 'article';
         break;
       }
-      case "collection":
+      case 'collection':
         itemData = await fetchSingleCollection(shop, accessToken, itemId);
         break;
-      case "page":
+      case 'page':
         itemData = await fetchSinglePage(shop, accessToken, itemId);
         break;
       default:
@@ -127,14 +125,11 @@ export async function action({ request }) {
     }
 
     if (!itemData) {
-      return json({ success: false, error: "Failed to fetch item data" }, { status: 400 });
+      return json({ success: false, error: 'Failed to fetch item data' }, { status: 400 });
     }
 
-    // --- Safe date parsing ---
     let parsedDate = date ? new Date(date) : null;
-    if (parsedDate && isNaN(parsedDate.getTime())) {
-      parsedDate = null;
-    }
+    if (parsedDate && isNaN(parsedDate.getTime())) parsedDate = null;
 
     const data = {
       name: itemData.title,
@@ -144,34 +139,24 @@ export async function action({ request }) {
       shop,
     };
 
-    if (actionType === "createEvent") {
+    if (actionType === 'createEvent') {
       await db.event.create({ data });
-    } else if (actionType === "editEvent") {
-      if (!eventId) {
-        return json({ success: false, error: "Missing eventId for editing" }, { status: 400 });
-      }
-
-      const existing = await db.event.findUnique({ where: { id: eventId } });
-      if (!existing) {
-        return json({ success: false, error: "Event not found" }, { status: 404 });
-      }
-
+    } else if (actionType === 'editEvent') {
+      if (!eventId) return json({ success: false, error: 'Missing eventId' }, { status: 400 });
       await db.event.update({ where: { id: eventId }, data });
     }
 
     return json({ success: true });
   }
 
-  if (actionType === "deleteEvent") {
-    const eventId = formData.get("eventId");
-
+  if (actionType === 'deleteEvent') {
+    const eventId = formData.get('eventId');
     await db.galleryUpload.deleteMany({ where: { eventId } });
     await db.event.delete({ where: { id: eventId } });
-
     return json({ success: true });
   }
 
-  return json({ success: false, error: "Invalid action" }, { status: 400 });
+  return json({ success: false, error: 'Invalid action' }, { status: 400 });
 }
 
 // -----------------------------
@@ -180,29 +165,43 @@ export async function action({ request }) {
 export default function AdminAddEvent() {
   const { events, products, blogs, collections, pages, setting } = useLoaderData();
   const fetcher = useFetcher();
+  const isSubmitting = fetcher.state === 'submitting' || fetcher.state === 'loading';
+
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [newEvent, setNewEvent] = useState({ id: "", type: "", itemId: "", date: "" });
+  const [newEvent, setNewEvent] = useState({ id: '', type: '', itemId: '', date: '' });
   const [items, setItems] = useState([]);
-  const [selectedBlogId, setSelectedBlogId] = useState("");
+  const [selectedBlogId, setSelectedBlogId] = useState('');
   const [blogArticles, setBlogArticles] = useState([]);
-  const [filterType, setFilterType] = useState("all");
+  const [filterType, setFilterType] = useState('all');
+
+  const [addEventEnabled, setAddEventEnabled] = useState(setting?.addEventEnabled || false);
+  const [onlyPurchasedItem, setOnlyPurchasedItem] = useState(setting?.onlyPurchasedItem || false);
+
+  // Delete confirmation
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteEventId, setDeleteEventId] = useState(null);
 
   useEffect(() => {
-    if (fetcher.data && fetcher.data.success) {
-      resetModalState();
+    if (setting) {
+      setAddEventEnabled(setting.addEventEnabled);
+      setOnlyPurchasedItem(setting.onlyPurchasedItem);
     }
+  }, [setting]);
+
+  useEffect(() => {
+    if (fetcher.data && fetcher.data.success) resetModalState();
   }, [fetcher.data]);
 
   useEffect(() => {
     switch (newEvent.type) {
-      case "product":
+      case 'product':
         setItems(products);
         break;
-      case "collection":
+      case 'collection':
         setItems(collections);
         break;
-      case "page":
+      case 'page':
         setItems(pages);
         break;
       default:
@@ -215,17 +214,17 @@ export default function AdminAddEvent() {
       id: event.id,
       type: event.type,
       itemId: event.shopifyId,
-      date: event.date ? event.date.split('T')[0] : "",
+      date: event.date ? event.date.split('T')[0] : '',
     });
 
-    if (event.type === "blog" || event.type === "article") {
-      const blog = blogs.find(b => b.articles.some(a => a.id === event.shopifyId));
+    if (event.type === 'blog' || event.type === 'article') {
+      const blog = blogs.find((b) => b.articles.some((a) => a.id === event.shopifyId));
       if (blog) {
         setSelectedBlogId(blog.id);
         setBlogArticles(blog.articles);
       }
     } else {
-      setSelectedBlogId("");
+      setSelectedBlogId('');
       setBlogArticles([]);
     }
 
@@ -233,35 +232,38 @@ export default function AdminAddEvent() {
     setEventModalOpen(true);
   };
 
-  const handleDelete = (eventId) => {
-    if (confirm("Are you sure you want to delete this event?")) {
-      fetcher.submit({ actionType: "deleteEvent", eventId }, { method: "POST" });
-    }
+  const handleDeleteClick = (eventId) => {
+    setDeleteEventId(eventId);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteEventId) return;
+    fetcher.submit({ actionType: 'deleteEvent', eventId: deleteEventId }, { method: 'POST' });
+    setDeleteModalOpen(false);
+    setDeleteEventId(null);
   };
 
   const resetModalState = () => {
     setEventModalOpen(false);
     setIsEditing(false);
-    setNewEvent({ id: "", type: "", itemId: "", date: "" });
-    setSelectedBlogId("");
+    setNewEvent({ id: '', type: '', itemId: '', date: '' });
+    setSelectedBlogId('');
     setBlogArticles([]);
   };
 
   const handleSubmit = () => {
-    const form = document.getElementById("create-event-form");
+    const form = document.getElementById('create-event-form');
     if (form) {
       const formData = new FormData(form);
-      fetcher.submit(formData, { method: "POST" });
+      fetcher.submit(formData, { method: 'POST' });
     }
   };
 
-  const filteredEvents = filterType === "all"
-    ? events
-    : events.filter(e =>
-        filterType === "blog"
-          ? e.type === "blog" || e.type === "article"
-          : e.type === filterType
-      );
+  const filteredEvents =
+    filterType === 'all'
+      ? events
+      : events.filter((e) => (filterType === 'blog' ? e.type === 'blog' || e.type === 'article' : e.type === filterType));
 
   return (
     <Page title="Manage gallery">
@@ -279,12 +281,9 @@ export default function AdminAddEvent() {
         .slider {
           position: absolute;
           cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
+          top: 0; left: 0; right: 0; bottom: 0;
           background-color: #ccc;
-          transition: .4s;
+          transition: .3s;
           border-radius: 34px;
         }
         .slider:before {
@@ -295,7 +294,7 @@ export default function AdminAddEvent() {
           left: 4px;
           bottom: 4px;
           background-color: white;
-          transition: .4s;
+          transition: .3s;
           border-radius: 50%;
         }
         input:checked + .slider {
@@ -305,48 +304,47 @@ export default function AdminAddEvent() {
           transform: translateX(24px);
         }
       `}</style>
-         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
-  <label className="toggle-switch">
-    <input
-      type="checkbox"
-      checked={setting?.onlyPurchasedItem}
-     onChange={() => {
-  const newValue = !setting?.onlyPurchasedItem;
-  setSetting(prev => ({ ...prev, onlyPurchasedItem: newValue })); // update instantly
-  const formData = new FormData();
-  formData.append("actionType", "toggleOnlyPurchasedItem");
-  formData.append("enabled", newValue.toString());
-  fetcher.submit(formData, { method: "POST" });
-}} />
-    <span className="slider"></span>
-  </label>
-  <span>Only allow ordered product to be uploaded</span>
-</div>
 
+      {/* Purchase Toggle */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <span style={{ marginLeft: '10px', fontWeight: 600 }}>Only Buyers Can Upload</span>
+        <label className="toggle-switch">
+          <input
+            type="checkbox"
+            checked={onlyPurchasedItem}
+            onChange={() => {
+              const newVal = !onlyPurchasedItem;
+              setOnlyPurchasedItem(newVal);
+              const formData = new FormData();
+              formData.append('actionType', 'togglePurchaseEvent');
+              formData.append('enabled', newVal.toString());
+              fetcher.submit(formData, { method: 'POST' });
+            }}
+          />
+          <span className="slider"></span>
+        </label>
+      </div>
+
+      {/* Add Event Button */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <button
           onClick={() => {
+            resetModalState();
             setEventModalOpen(true);
             setIsEditing(false);
-            setNewEvent({ id: "", type: "", itemId: "", date: "" });
-            setSelectedBlogId("");
-            setBlogArticles([]);
           }}
-          disabled={!setting?.addEventEnabled}
+          disabled={!addEventEnabled}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            background: !setting?.addEventEnabled
-              ? '#d1d5db'
-              : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
-            color: !setting?.addEventEnabled ? '#6b7280' : 'white',
+            background: !addEventEnabled ? '#d1d5db' : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
+            color: !addEventEnabled ? '#6b7280' : 'white',
             border: 'none',
             borderRadius: '6px',
             padding: '6px 12px',
             fontWeight: '600',
-            cursor: !setting?.addEventEnabled ? 'not-allowed' : 'pointer',
-            boxShadow:'4px'
+            cursor: !addEventEnabled ? 'not-allowed' : 'pointer',
           }}
         >
           Add Items
@@ -356,26 +354,28 @@ export default function AdminAddEvent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <Select
             options={[
-              { label: "All", value: "all" },
-              { label: "Product", value: "product" },
-              { label: "Blog", value: "blog" },
-              { label: "Collection", value: "collection" },
-              { label: "Page", value: "page" },
+              { label: 'All', value: 'all' },
+              { label: 'Product', value: 'product' },
+              { label: 'Blog', value: 'blog' },
+              { label: 'Collection', value: 'collection' },
+              { label: 'Page', value: 'page' },
             ]}
             onChange={setFilterType}
             value={filterType}
-            disabled={!setting?.addEventEnabled}
+            disabled={!addEventEnabled}
           />
-            
+
           <label className="toggle-switch">
             <input
               type="checkbox"
-              checked={setting?.addEventEnabled}
+              checked={addEventEnabled}
               onChange={() => {
+                const newVal = !addEventEnabled;
+                setAddEventEnabled(newVal);
                 const formData = new FormData();
-                formData.append("actionType", "toggleAddEvent");
-                formData.append("enabled", (!setting?.addEventEnabled).toString());
-                fetcher.submit(formData, { method: "POST" });
+                formData.append('actionType', 'toggleAddEvent');
+                formData.append('enabled', newVal.toString());
+                fetcher.submit(formData, { method: 'POST' });
               }}
             />
             <span className="slider"></span>
@@ -383,87 +383,107 @@ export default function AdminAddEvent() {
         </div>
       </div>
 
+      {/* Table */}
       {filteredEvents.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
-            You don’t have any items yet
-          </h2>
-          <p style={{ color: '#6b7280', marginBottom: '20px' }}>
-            Start by creating one to manage your gallery items
-          </p>
-          <button
-            onClick={() => {
-              setEventModalOpen(true);
-              setIsEditing(false);
-              setNewEvent({ id: "", type: "", itemId: "", date: "" });
-              setSelectedBlogId("");
-              setBlogArticles([]);
-            }}
-            disabled={!setting?.addEventEnabled}
-            style={{
-              gap: '8px',
-              background: !setting?.addEventEnabled
-                ? '#d1d5db'
-                : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
-              color: !setting?.addEventEnabled ? '#6b7280' : 'white',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontWeight: '600',
-              cursor: !setting?.addEventEnabled ? 'not-allowed' : 'pointer',
-              boxShadow:'4px'
-            }}
-          >
-            Create your first item
-          </button>
+  <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+    <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+      You don’t have any items yet
+    </h2>
+    <p style={{ color: '#6b7280', marginBottom: '20px' }}>
+      Start by creating one to manage your gallery items
+    </p>
+    <button
+      onClick={() => setEventModalOpen(true)}
+      disabled={!addEventEnabled || isSubmitting}
+      style={{
+        background: !addEventEnabled ? '#d1d5db' : 'linear-gradient(to bottom, #3d3c3cff, #111111)',
+        color: !addEventEnabled ? '#6b7280' : 'white',
+        border: 'none',
+        borderRadius: '6px',
+        padding: '6px 12px',
+        fontWeight: '600',
+        cursor: !addEventEnabled || isSubmitting ? 'not-allowed' : 'pointer',
+      }}
+    >
+      {isSubmitting ? <Spinner size="small" /> : 'Create your first item'}
+    </button>
+  </div>
+) : (
+  <Card>
+    <div style={{ position: 'relative' }}>
+      {isSubmitting && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255,255,255,0.6)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Spinner size="large" color="inkLightest" />
         </div>
-      ) : (
-        <Card>
-          <DataTable
-            columnContentTypes={['text', 'text', 'text', 'text', 'text']}
-            headings={['#', 'Name', 'Type', 'Date', 'Actions']}
-            rows={filteredEvents.map((event, index) => [
-              index + 1,
-              event.name,
-              event.type.charAt(0).toUpperCase() + event.type.slice(1),
-              event.date ? new Date(event.date).toLocaleDateString() : "N/A",
-              <div style={{ display: "flex", gap: "8px" }}>
-                <Button icon={EditIcon} onClick={() => handleEdit(event)} plain />
-                <Button icon={DeleteIcon} onClick={() => handleDelete(event.id)} plain destructive />
-              </div>
-            ])}
-          />
-        </Card>
       )}
 
+      <DataTable
+        columnContentTypes={['text', 'text', 'text', 'text', 'text']}
+        headings={['#', 'Name', 'Type', 'Date', 'Actions']}
+        rows={filteredEvents.map((event, index) => [
+          index + 1,
+          event.name,
+          event.type.charAt(0).toUpperCase() + event.type.slice(1),
+          event.date ? new Date(event.date).toLocaleDateString() : 'N/A',
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button icon={EditIcon} onClick={() => handleEdit(event)} plain disabled={isSubmitting} />
+            <Button icon={DeleteIcon} onClick={() => handleDeleteClick(event.id)} plain destructive disabled={isSubmitting} />
+          </div>,
+        ])}
+      />
+    </div>
+  </Card>
+)}
+
+
+      {/* --- Event Create/Edit Modal --- */}
       <Modal
         open={eventModalOpen}
         onClose={resetModalState}
-        title={isEditing ? "Edit Event" : "Add New Item"}
+        title={isEditing ? 'Edit Event' : 'Add New Item'}
         primaryAction={{
-          content: isEditing ? "Update" : "Create",
+          content: (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {isSubmitting && <Spinner size="small" />}
+              {isSubmitting ? 'Processing...' : isEditing ? 'Update' : 'Create'}
+            </span>
+          ),
           onAction: handleSubmit,
+          disabled: isSubmitting,
         }}
       >
         <Modal.Section>
           <fetcher.Form method="POST" id="create-event-form">
-            <input type="hidden" name="actionType" value={isEditing ? "editEvent" : "createEvent"} />
+            <input type="hidden" name="actionType" value={isEditing ? 'editEvent' : 'createEvent'} />
             {isEditing && <input type="hidden" name="eventId" value={newEvent.id} />}
 
             <TextContainer>
               <Select
                 label="Type"
                 options={[
-                  { label: "Select Type", value: "" },
-                  { label: "Product", value: "product" },
-                  { label: "Blog", value: "blog" },
-                  { label: "Collection", value: "collection" },
-                  { label: "Page", value: "page" },
+                  { label: 'Select Type', value: '' },
+                  { label: 'Product', value: 'product' },
+                  { label: 'Blog', value: 'blog' },
+                  { label: 'Collection', value: 'collection' },
+                  { label: 'Page', value: 'page' },
                 ]}
                 onChange={(value) => {
-                  setNewEvent(prev => ({ ...prev, type: value, itemId: "" }));
-                  if (value !== "blog") {
-                    setSelectedBlogId("");
+                  setNewEvent((prev) => ({ ...prev, type: value, itemId: '' }));
+                  if (value !== 'blog') {
+                    setSelectedBlogId('');
                     setBlogArticles([]);
                   }
                 }}
@@ -471,19 +491,19 @@ export default function AdminAddEvent() {
                 required
               />
 
-              {newEvent.type === "blog" && (
+              {newEvent.type === 'blog' && (
                 <>
                   <Select
                     label="Select Blog Category"
                     options={[
-                      { label: "Select Blog", value: "" },
-                      ...blogs.map(blog => ({ label: blog.title, value: blog.id })),
+                      { label: 'Select Blog', value: '' },
+                      ...blogs.map((blog) => ({ label: blog.title, value: blog.id })),
                     ]}
                     onChange={(value) => {
                       setSelectedBlogId(value);
-                      const selectedBlog = blogs.find(b => b.id === value);
+                      const selectedBlog = blogs.find((b) => b.id === value);
                       setBlogArticles(selectedBlog ? selectedBlog.articles : []);
-                      setNewEvent(prev => ({ ...prev, itemId: "" }));
+                      setNewEvent((prev) => ({ ...prev, itemId: '' }));
                     }}
                     value={selectedBlogId}
                     required
@@ -492,24 +512,21 @@ export default function AdminAddEvent() {
                   <Select
                     label="Select Blog Article"
                     options={[
-                      { label: "Select Article", value: "" },
-                      ...blogArticles.map(article => ({ label: article.title, value: article.id })),
+                      { label: 'Select Article', value: '' },
+                      ...blogArticles.map((article) => ({ label: article.title, value: article.id })),
                     ]}
-                    onChange={(value) => setNewEvent(prev => ({ ...prev, itemId: value }))}
+                    onChange={(value) => setNewEvent((prev) => ({ ...prev, itemId: value }))}
                     value={newEvent.itemId}
                     required
                   />
                 </>
               )}
 
-              {newEvent.type !== "blog" && (
+              {newEvent.type !== 'blog' && (
                 <Select
                   label="Select Item"
-                  options={[
-                    { label: "Select Item", value: "" },
-                    ...items.map(i => ({ label: i.title || i.handle, value: i.id })),
-                  ]}
-                  onChange={(value) => setNewEvent(prev => ({ ...prev, itemId: value }))}
+                  options={[{ label: 'Select Item', value: '' }, ...items.map((i) => ({ label: i.title || i.handle, value: i.id }))]}
+                  onChange={(value) => setNewEvent((prev) => ({ ...prev, itemId: value }))}
                   value={newEvent.itemId}
                   required
                 />
@@ -518,15 +535,28 @@ export default function AdminAddEvent() {
               <input
                 type="date"
                 name="date"
-                value={newEvent.date || ""}
-                onChange={(e) => setNewEvent(prev => ({ ...prev, date: e.target.value }))}
-                style={{ width: "100%", padding: "8px", marginBottom: "10px", borderRadius: "4px", border: "1px solid #ccc" }}
+                value={newEvent.date || ''}
+                onChange={(e) => setNewEvent((prev) => ({ ...prev, date: e.target.value }))}
+                style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
               />
 
               <input type="hidden" name="type" value={newEvent.type} />
               <input type="hidden" name="itemId" value={newEvent.itemId} />
             </TextContainer>
           </fetcher.Form>
+        </Modal.Section>
+      </Modal>
+
+      {/* --- Delete Confirmation Modal --- */}
+      <Modal
+        open={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Confirm Delete"
+        primaryAction={{ content: 'Delete', destructive: true, onAction: confirmDelete }}
+        secondaryActions={[{ content: 'Cancel', onAction: () => setDeleteModalOpen(false) }]}
+      >
+        <Modal.Section>
+          <p>Are you sure you want to delete this event? This action cannot be undone.</p>
         </Modal.Section>
       </Modal>
     </Page>

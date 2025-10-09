@@ -50,6 +50,14 @@ export async function fetchProducts(shop, accessToken) {
             node {
               id
               title
+              variants(first: 100) {
+                edges {
+                  node {
+                    id
+                    title
+                  }
+                }
+              }
             }
           }
           pageInfo {
@@ -63,11 +71,16 @@ export async function fetchProducts(shop, accessToken) {
       items: json.data.products.edges.map((edge) => ({
         id: edge.node.id,
         title: edge.node.title,
+        variants: edge.node.variants.edges.map(v => ({
+          id: v.node.id,
+          title: v.node.title
+        })),
       })),
       pageInfo: json.data.products.pageInfo,
     })
   );
 }
+
 
 export async function fetchCollections(shop, accessToken) {
   return await paginateQuery(
@@ -175,7 +188,7 @@ export async function fetchPages(shop, accessToken) {
 // Single Fetchers (per store)
 // -----------------------------
 export async function fetchSingleProduct(shop, accessToken, productId) {
-  const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+  const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
     method: "POST",
     headers: {
       "X-Shopify-Access-Token": accessToken,
@@ -187,6 +200,14 @@ export async function fetchSingleProduct(shop, accessToken, productId) {
           product(id: $id) {
             id
             title
+            variants(first: 100) {
+              edges {
+                node {
+                  id
+                  title
+                }
+              }
+            }
           }
         }
       `,
@@ -198,8 +219,13 @@ export async function fetchSingleProduct(shop, accessToken, productId) {
   return {
     id: data.data.product.id,
     title: data.data.product.title,
+    variants: data.data.product.variants.edges.map(v => ({
+      id: v.node.id,
+      title: v.node.title
+    }))
   };
 }
+
 
 export async function fetchSingleCollection(shop, accessToken, collectionId) {
   const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {

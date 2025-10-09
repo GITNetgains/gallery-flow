@@ -49,8 +49,8 @@ model GalleryUpload {
   name       String
   email      String
   eventId    String?
-  itemId      String?  // new: for products, pages, blogs, collections
-  itemType    String?  // new: product | blog | collection | page
+  itemId     String?  // new: for products, pages, blogs, collections
+  itemType   String?  // new: product | blog | collection | page
   itemName   String? 
   event      Event?    @relation(fields: [eventId], references: [id])
   status     String   @default("pending")

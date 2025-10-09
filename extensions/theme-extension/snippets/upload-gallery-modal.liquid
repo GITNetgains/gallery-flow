@@ -214,6 +214,19 @@
   );
 }
 
+async function fetchPurchaseSetting(){
+  try{
+    const res=await fetch(`https://gallery-flow-five.vercel.app/api/purchasetrue?shop=${appData.shop}`);
+    const json =await res.json();
+    if(!json.onlyPurchasedItem){
+      return false;
+    }else{
+      return true;
+    }
+  }catch{
+    return;
+  }
+}
 
 
   // Fetch items
@@ -254,7 +267,7 @@
       const opt = document.createElement("option");
       opt.value = item.id;
         if (item.type === "product") {
-    opt.dataset.productId = String(item.id); // assume this is the product ID
+    opt.dataset.productId = String(item.shopifyid); // assume this is the product ID
     opt.dataset.variantId = "";      // if not available
     console.log("hyy",opt.dataset.productId,opt.dataset.variantId)
   } else {
@@ -292,8 +305,10 @@
   const variantId = extractNumericId(selectedOption?.dataset.variantId || "0");
   console.log("productID",productId,"varinatID",variantId)
 
+const onlyenablepurchase=await fetchPurchaseSetting();
+
   // ✅ Purchase check (only if productId or variantId exists)
-  if (productId || variantId) {
+  if (!onlyenablepurchase &&(productId || variantId)) {
     if (!hasPurchased(productId, variantId)) {
       message.textContent = "⚠️ You cannot upload for this product because you have not purchased it.";
       message.style.color = "red";
