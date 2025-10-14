@@ -19,8 +19,9 @@ import {
   fetchBlogs,
   fetchCollections,
   fetchPages,
-  fetchSingleProduct,
+  fetchProductByVariant,
   fetchSingleCollection,
+  fetchSingleProduct,
   fetchSinglePage,
 } from '../shopifyApiUtils';
 import { authenticate } from '../shopify.server';
@@ -39,6 +40,7 @@ export async function loader({ request }) {
   });
 
   const [products, blogs, collections, pages, setting] = await Promise.all([
+    
     fetchProducts(shop, accessToken),
     fetchBlogs(shop, accessToken),
     fetchCollections(shop, accessToken),
@@ -90,6 +92,16 @@ export async function action({ request }) {
     });
     return json({ success: true });
   }
+  if (actionType === 'toggleVariantEvent') {
+  const enabled = formData.get('enabled') === 'true';
+  await db.setting.upsert({
+    where: { shop },
+    update: { fetchVaraints: enabled },
+    create: { shop, fetchVaraints: enabled },
+  });
+  return json({ success: true });
+}
+
 
   if (actionType === 'createEvent' || actionType === 'editEvent') {
     let type = formData.get('type');
@@ -102,9 +114,16 @@ export async function action({ request }) {
     }
 
     let itemData;
+    let variantId;
     switch (type) {
       case 'product':
+         if (setting?.fetchVaraints){
+        itemData = await fetchProductByVariant(shop, accessToken, itemId);
+       variantId=itemId;
+      }
+        else{
         itemData = await fetchSingleProduct(shop, accessToken, itemId);
+        }
         break;
       case 'blog': {
         const blogs = await fetchBlogs(shop, accessToken);
@@ -134,7 +153,8 @@ export async function action({ request }) {
     const data = {
       name: itemData.title,
       type,
-      shopifyId: itemId,
+      shopifyId: setting?.fetchVaraints && variantId ? itemData.productId : itemData.id,
+      variantId,
       date: parsedDate,
       shop,
     };
@@ -174,10 +194,9 @@ export default function AdminAddEvent() {
   const [selectedBlogId, setSelectedBlogId] = useState('');
   const [blogArticles, setBlogArticles] = useState([]);
   const [filterType, setFilterType] = useState('all');
-
   const [addEventEnabled, setAddEventEnabled] = useState(setting?.addEventEnabled || false);
   const [onlyPurchasedItem, setOnlyPurchasedItem] = useState(setting?.onlyPurchasedItem || false);
-
+ const [fetchVaraints, setfetchVaraints] = useState(setting?.fetchVaraints || false);
   // Delete confirmation
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteEventId, setDeleteEventId] = useState(null);
@@ -186,6 +205,7 @@ export default function AdminAddEvent() {
     if (setting) {
       setAddEventEnabled(setting.addEventEnabled);
       setOnlyPurchasedItem(setting.onlyPurchasedItem);
+      setfetchVaraints(setting?.fetchVaraints)
     }
   }, [setting]);
 
@@ -194,20 +214,28 @@ export default function AdminAddEvent() {
   }, [fetcher.data]);
 
   useEffect(() => {
-    switch (newEvent.type) {
-      case 'product':
-        setItems(products);
-        break;
-      case 'collection':
-        setItems(collections);
-        break;
-      case 'page':
-        setItems(pages);
-        break;
-      default:
-        setItems([]);
+  if (newEvent.type === 'product') {
+    if (fetchVaraints) {
+      // Map all products to their variants
+      const allVariants = products.flatMap(product =>
+        product.variants.map(variant => ({
+          id: variant.id,
+          title: `${product.title} - ${variant.title}`,
+          productTitle: product.title,
+        }))
+      );
+      setItems(allVariants);
+    } else {
+      setItems(products);
     }
-  }, [newEvent.type, products, collections, pages]);
+  } else if (newEvent.type === 'collection') {
+    setItems(collections);
+  } else if (newEvent.type === 'page') {
+    setItems(pages);
+  } else {
+    setItems([]);
+  }
+}, [newEvent.type, products, collections, pages, setting?.fetchVaraints]);
 
   const handleEdit = (event) => {
     setNewEvent({
@@ -250,15 +278,57 @@ export default function AdminAddEvent() {
     setNewEvent({ id: '', type: '', itemId: '', date: '' });
     setSelectedBlogId('');
     setBlogArticles([]);
-  };
+  };const [formError, setFormError] = useState('');
 
-  const handleSubmit = () => {
-    const form = document.getElementById('create-event-form');
-    if (form) {
-      const formData = new FormData(form);
-      fetcher.submit(formData, { method: 'POST' });
+const handleSubmit = () => {
+  const form = document.getElementById('create-event-form');
+  if (!form) return;
+
+  const formData = new FormData(form);
+  const type = formData.get('type');
+  const itemId = formData.get('itemId');
+  const dateStr = formData.get('date');
+
+  const errors = [];
+
+  if (!type) errors.push('Type is required.');
+  if (!itemId) errors.push('Item selection is required.');
+  if (!dateStr) {
+    errors.push('Date is required.');
+  } else {
+    // Validate YYYY-MM-DD format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateStr)) {
+      errors.push('Date must be in DD-MM-YYYY format.');
+    } else {
+      const dateParts = dateStr.split('-');
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10);
+      const day = parseInt(dateParts[2], 10);
+
+      const dateObj = new Date(dateStr);
+      if (
+        dateObj.getFullYear() !== year ||
+        dateObj.getMonth() + 1 !== month ||
+        dateObj.getDate() !== day
+      ) {
+        errors.push('Invalid date.');
+      }
     }
-  };
+  }
+
+  if (errors.length > 0) {
+    setFormError(errors.join(' '));
+    return;
+  }
+
+  // Clear errors before submitting
+  setFormError('');
+
+  // Submit the form
+  // fetcher.submit(formData, { method: 'POST' });
+};
+
 
   const filteredEvents =
     filterType === 'all'
@@ -304,6 +374,27 @@ export default function AdminAddEvent() {
           transform: translateX(24px);
         }
       `}</style>
+
+ {/* varaint toggle  */}
+      
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+  <span style={{ marginLeft: '10px', fontWeight: 600 }}>Create Events Per Variant</span>
+  <label className="toggle-switch">
+    <input
+      type="checkbox"
+      checked={fetchVaraints}
+      onChange={() => {
+        const newVal = !fetchVaraints;
+        setfetchVaraints(newVal);
+        const formData = new FormData();
+        formData.append('actionType', 'toggleVariantEvent');
+        formData.append('enabled', newVal.toString());
+        fetcher.submit(formData, { method: 'POST' });
+      }}
+    />
+    <span className="slider"></span>
+  </label>
+</div>
 
       {/* Purchase Toggle */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -437,7 +528,7 @@ export default function AdminAddEvent() {
           index + 1,
           event.name,
           event.type.charAt(0).toUpperCase() + event.type.slice(1),
-          event.date ? new Date(event.date).toLocaleDateString() : 'N/A',
+          event.date ? new Date(event.date).toISOString().split('T')[0] : 'N/A',
           <div style={{ display: 'flex', gap: '8px' }}>
             <Button icon={EditIcon} onClick={() => handleEdit(event)} plain disabled={isSubmitting} />
             <Button icon={DeleteIcon} onClick={() => handleDeleteClick(event.id)} plain destructive disabled={isSubmitting} />
@@ -544,6 +635,7 @@ export default function AdminAddEvent() {
               <input type="hidden" name="itemId" value={newEvent.itemId} />
             </TextContainer>
           </fetcher.Form>
+          {formError && <p style={{ color: 'red', marginBottom: '10px' }}>{formError}</p>}
         </Modal.Section>
       </Modal>
 

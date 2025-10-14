@@ -7,9 +7,10 @@ import {
   fetchBlogs,
   fetchCollections,
   fetchPages,
+  fetchProductByVariant,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
-import { authenticate } from "../shopify.server"; // ✅ Shopify auth util
+import { authenticate } from "../shopify.server"; 
 
 // -----------------------------
 // Cloudinary Config
@@ -105,10 +106,20 @@ export const loader = async ({ request }) => {
       );
     }
 
+    let products;
     if (!setting.addEventEnabled) {
       // Events disabled → return products/blogs/pages/collections
-      const [products, blogs, collections, pages] = await Promise.all([
-        fetchProducts(shop, accessToken),
+       if (setting?.fetchVariants) { 
+       products =   await fetchProductByVariant(shop, accessToken) 
+       console.log("variant:",products)
+          console.log("Fetched products by variant")
+        } else {
+        products =   await fetchProducts(shop, accessToken)
+        console.log("products:",products)
+          console.log("Fetched products without variants")
+          }
+
+      const [ blogs, collections, pages] = await Promise.all([
         fetchBlogs(shop, accessToken),
         fetchCollections(shop, accessToken),
         fetchPages(shop, accessToken),
@@ -157,7 +168,7 @@ export const loader = async ({ request }) => {
 // Helpers
 // -----------------------------
 function determineItemType(shopifyId) {
-  if (shopifyId.includes("Product")) return "product";
+  if (shopifyId.includes("Product")) return "product" ;
   if (shopifyId.includes("Article")) return "article";
   if (shopifyId.includes("Blog")) return "blog";
   if (shopifyId.includes("Collection")) return "collection";
@@ -231,9 +242,15 @@ export const action = async ({ request }) => {
 
       let itemName = "";
       if (type === "product") {
+        if(setting?.fetchVariants){
+          const products = await fetchProductByVariant(shop, accessToken);
+          const matched = products.find((p) => p.variants.some(v => v.id === eventId));
+          const variant = matched?.variants.find(v => v.id === eventId);
+          itemName = variant ? `${matched.title} - ${variant.title}` : "Product Variant";
+        }else{
         const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
-        itemName = matched?.title || "Product";
+        itemName = matched?.title || "Product";}
       } else if (type === "article") {
         const blogs = await fetchBlogs(shop, accessToken);
         const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));

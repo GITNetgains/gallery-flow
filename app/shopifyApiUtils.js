@@ -227,6 +227,58 @@ export async function fetchSingleProduct(shop, accessToken, productId) {
 }
 
 
+export async function fetchProductByVariant(shop, accessToken, variantId) {
+  const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `
+        query($id: ID!) {
+          productVariant(id: $id) {
+            id
+            title
+            product {
+              id
+              title
+              variants(first: 100) {
+                edges {
+                  node {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+      variables: { id: variantId },
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!data?.data?.productVariant?.product) {
+    throw new Error(`Product for variant ${variantId} not found.`);
+  }
+
+  const product = data.data.productVariant.product;
+
+  return {
+    id: product.id,
+    title: product.title,
+    variants: product.variants.edges.map(v => ({
+      id: v.node.id,
+      title: v.node.title,
+    })),
+  };
+}
+
+
+
 export async function fetchSingleCollection(shop, accessToken, collectionId) {
   const res = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
     method: "POST",

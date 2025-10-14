@@ -234,10 +234,11 @@ async function fetchPurchaseSetting(){
     try {
       const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`);
       const json = await res.json();
+      console.log(json);
       if (!json.success) return;
       if (json.disabled) {
         allItems = [
-          ...json.products.map(p => ({ id: p.id, name: p.title, type: "product" })),
+          ...json.products.map(p => ({ id: p.id, name: p.title, type: "product",shopify_id:p.id , variant_id:p.id ,})),
           ...json.blogs.flatMap(b => b.articles.map(a => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))),
           ...json.collections.map(c => ({ id: c.id, name: c.title, type: "collection" })),
           ...json.pages.map(p => ({ id: p.id, name: p.title, type: "page" }))
@@ -248,6 +249,8 @@ async function fetchPurchaseSetting(){
           name: ev.name,
           date: ev.date,
           type: ev.type,
+          shopify_id:ev.shopifyId,
+          variant_id:ev.variant_id
         }));
       }
     } catch (err) {
@@ -267,8 +270,8 @@ async function fetchPurchaseSetting(){
       const opt = document.createElement("option");
       opt.value = item.id;
         if (item.type === "product") {
-    opt.dataset.productId = String(item.shopifyid); // assume this is the product ID
-    opt.dataset.variantId = "";      // if not available
+    opt.dataset.productId = String(item.shopify_id); // assume this is the product ID
+    opt.dataset.variantId = String(item.variant_id);      // if not available
     console.log("hyy",opt.dataset.productId,opt.dataset.variantId)
   } else {
     opt.dataset.productId = "";
