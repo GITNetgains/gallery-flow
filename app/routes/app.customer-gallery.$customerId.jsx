@@ -22,12 +22,15 @@ import {
   ArrowRightIcon,
 } from '@shopify/polaris-icons';
 import db from '../db.server';
-import { authenticate } from "../shopify.server"; // ✅
+import { authenticate } from "../shopify.server";
 
 export async function loader({ request, params }) {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const { customerId } = params;
+
+  const setting = await db.setting.findUnique({ where: { shop } });
+  const fetchVariantEnabled = setting?.fetchVariantEnabled || false;
 
   const galleries = await db.galleryUpload.findMany({
     where: {
@@ -39,20 +42,19 @@ export async function loader({ request, params }) {
     include: { images: true, event: true },
   });
 
-  return json({ galleries, customerId, shop });
+  return json({ galleries, customerId, shop, fetchVariantEnabled });
 }
 
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-
   const formData = await request.formData();
+
   const id = formData.get("id");
   const status = formData.get("status");
   const type = formData.get("type");
   const actionType = formData.get("actionType");
 
-  // Delete gallery
   if (actionType === "delete" && id) {
     await db.image.deleteMany({ where: { galleryId: id } });
     await db.galleryUpload.deleteMany({ where: { id, shop } });
@@ -73,24 +75,24 @@ export async function action({ request }) {
 }
 
 export default function CustomerGallery() {
-  const { galleries, customerId } = useLoaderData();
+  const { galleries, customerId, fetchVariantEnabled } = useLoaderData();
   const [activeGallery, setActiveGallery] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteModal, setDeleteModal] = useState({ open: false, galleryId: null });
   const fetcher = useFetcher();
   const itemsPerPage = 10;
 
   const filteredGalleries = useMemo(() => {
-  if (!searchTerm?.trim()) return galleries;
-  const lowerSearch = searchTerm.toLowerCase();
-  return galleries.filter(gallery => {
-    const eventName = gallery.event?.name?.toLowerCase() || '';
-    const itemName = gallery.itemName?.toLowerCase() || '';
-    return eventName.includes(lowerSearch) || itemName.includes(lowerSearch);
-  });
-}, [galleries, searchTerm]);
-
+    if (!searchTerm?.trim()) return galleries;
+    const lowerSearch = searchTerm.toLowerCase();
+    return galleries.filter(gallery => {
+      const eventName = gallery.event?.name?.toLowerCase() || '';
+      const itemName = gallery.itemName?.toLowerCase() || '';
+      return eventName.includes(lowerSearch) || itemName.includes(lowerSearch);
+    });
+  }, [galleries, searchTerm]);
 
   const totalPages = Math.ceil(filteredGalleries.length / itemsPerPage);
   const paginatedGalleries = filteredGalleries.slice(
@@ -109,10 +111,17 @@ export default function CustomerGallery() {
     const firstTwoImages = gallery.images.slice(0, 2);
     const remainingCount = gallery.images.length - 2;
 
+    // ✅ Display variant name if variant mode is enabled
+    const galleryLabel = fetchVariantEnabled
+      ? gallery.itemName || "Variant"
+      : gallery.event
+      ? gallery.event.name
+      : gallery.itemName || "N/A";
+
     return [
       (currentPage - 1) * itemsPerPage + index + 1,
       <div style={{ maxWidth: '200px', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-        {gallery.event ? gallery.event.name : gallery.itemName || "N/A"}
+        {galleryLabel}
       </div>,
       <div style={{ textAlign: 'center' }}>
         <Badge
@@ -153,69 +162,64 @@ export default function CustomerGallery() {
         )}
       </div>,
       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-       {(() => {
-  const hasApprovedImage = gallery.images.some(img => img.status === 'approved');
+        {/* Approve/Decline */}
+        {(() => {
+          const hasApprovedImage = gallery.images.some(img => img.status === 'approved');
 
-  return (
-    <>
-      <fetcher.Form method="POST" replace>
-        <input type="hidden" name="type" value="gallery" />
-        <input type="hidden" name="id" value={gallery.id} />
-        <input type="hidden" name="status" value="approved" />
+          return (
+            <>
+              <fetcher.Form method="POST" replace>
+                <input type="hidden" name="type" value="gallery" />
+                <input type="hidden" name="id" value={gallery.id} />
+                <input type="hidden" name="status" value="approved" />
+                <button
+                  type="submit"
+                  title="Approve"
+                  disabled={!hasApprovedImage}
+                  style={{ opacity: hasApprovedImage ? 1 : 0.4, cursor: hasApprovedImage ? 'pointer' : 'not-allowed' }}
+                >
+                  <Icon source={CheckIcon} color="success" />
+                </button>
+              </fetcher.Form>
+
+              <fetcher.Form method="POST" replace>
+                <input type="hidden" name="type" value="gallery" />
+                <input type="hidden" name="id" value={gallery.id} />
+                <input type="hidden" name="status" value="declined" />
+                <button
+                  type="submit"
+                  title="Decline"
+                  disabled={!hasApprovedImage}
+                  style={{ opacity: hasApprovedImage ? 1 : 0.4, cursor: hasApprovedImage ? 'pointer' : 'not-allowed' }}
+                >
+                  <Icon source={XIcon} color="critical" />
+                </button>
+              </fetcher.Form>
+            </>
+          );
+        })()}
+
+        {/* Delete Button (with confirmation) */}
         <button
-          type="submit"
-          title={
-            hasApprovedImage
-              ? "Approve gallery"
-              : "At least one image must be approved first"
-          }
-          disabled={!hasApprovedImage}
-          style={{ opacity: hasApprovedImage ? 1 : 0.4, cursor: hasApprovedImage ? 'pointer' : 'not-allowed' }}
+          title="Delete"
+          onClick={() => setDeleteModal({ open: true, galleryId: gallery.id })}
+          style={{
+            background: '#ff4d4d',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '5px 8px',
+            cursor: 'pointer',
+            color: 'white',
+          }}
         >
-          <Icon source={CheckIcon} color="success" />
+          <Icon source={DeleteIcon} color="base" />
         </button>
-      </fetcher.Form>
-
-      <fetcher.Form method="POST" replace>
-        <input type="hidden" name="type" value="gallery" />
-        <input type="hidden" name="id" value={gallery.id} />
-        <input type="hidden" name="status" value="declined" />
-        <button
-          type="submit"
-          title={
-            hasApprovedImage
-              ? "Decline gallery"
-              : "At least one image must be approved first"
-          }
-          disabled={!hasApprovedImage}
-          style={{ opacity: hasApprovedImage ? 1 : 0.4, cursor: hasApprovedImage ? 'pointer' : 'not-allowed' }}
-        >
-          <Icon source={XIcon} color="critical" />
-        </button>
-      </fetcher.Form>
-    </>
-  );
-})()}
-
-        <fetcher.Form method="POST" replace>
-          <input type="hidden" name="actionType" value="delete" />
-          <input type="hidden" name="id" value={gallery.id} />
-          <button type="submit" title="Delete">
-            <Icon source={DeleteIcon} color="critical" />
-          </button>
-        </fetcher.Form>
       </div>,
     ];
   });
 
-  const handleApproveImage = (id) =>
-    fetcher.submit({ type: 'image', id, status: 'approved' }, { method: 'POST' });
-  const handleDeclineImage = (id) =>
-    fetcher.submit({ type: 'image', id, status: 'declined' }, { method: 'POST' });
-
   const nextImage = () => activeGallery && setActiveImageIndex(Math.min(activeImageIndex + 1, activeGallery.images.length - 1));
   const prevImage = () => activeGallery && setActiveImageIndex(Math.max(activeImageIndex - 1, 0));
-
   const currentImage = activeGallery?.images[activeImageIndex];
 
   return (
@@ -225,7 +229,7 @@ export default function CustomerGallery() {
         <TextField
           label="Search galleries"
           labelHidden
-          placeholder="Search by event name..."
+          placeholder="Search by event or variant name..."
           value={searchTerm}
           onChange={(value) => { setSearchTerm(value); setCurrentPage(1); }}
           autoComplete="off"
@@ -257,139 +261,163 @@ export default function CustomerGallery() {
         </>
       )}
 
-      {/* image modal */}
-{currentImage && (
-  <Modal open onClose={() => setActiveGallery(null)} title="Image" large>
-    <Modal.Section>
-      <div style={{ position: 'relative', textAlign: 'center', padding: '20px 0' }}>
-        {/* Image */}
-        <img
-          src={currentImage.url}
-          alt="Full"
-          style={{
-            maxWidth: '100%',
-            maxHeight: '600px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+      {/* Delete confirmation modal */}
+      {deleteModal.open && (
+        <Modal
+          open
+          title="Delete Gallery"
+          onClose={() => setDeleteModal({ open: false, galleryId: null })}
+          primaryAction={{
+            content: 'Delete',
+            destructive: true,
+            onAction: () => {
+              fetcher.submit(
+                { actionType: 'delete', id: deleteModal.galleryId },
+                { method: 'POST' }
+              );
+              setDeleteModal({ open: false, galleryId: null });
+            },
           }}
-        />
-
-        {/* Left/Right Arrows */}
-        {activeGallery.images.length > 1 && (
-  <>
-    {/* Left Arrow */}
-    <button
-      onClick={prevImage}
-      disabled={activeImageIndex === 0}
-      style={{
-        position: 'absolute',
-        top: '50%',
-        left: '10px',
-        transform: 'translateY(-50%)',
-        zIndex: 20,
-        backgroundColor: 'rgba(120, 118, 118, 0.5)',
-        border: 'none',
-        borderRadius: '50%',
-        width: '30px',
-        height: '30px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: activeImageIndex === 0 ? 'not-allowed' : 'pointer',
-      }}
-    >
-      <Icon source={ArrowLeftIcon} color="base" />
-    </button>
-
-    {/* Right Arrow */}
-    <button
-      onClick={nextImage}
-      disabled={activeImageIndex === activeGallery.images.length - 1}
-      style={{
-        position: 'absolute',
-        top: '50%',
-        right: '10px',
-        transform: 'translateY(-50%)',
-        zIndex: 20,
-        backgroundColor: 'rgba(71, 71, 71, 0.5)',
-        border: 'none',
-        borderRadius: '50%',
-        width: '30px',
-        height: '30px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor:
-          activeImageIndex === activeGallery.images.length - 1
-            ? 'not-allowed'
-            : 'pointer',
-      }}
-    >
-      <Icon source={ArrowRightIcon} color="base" />
-    </button>
-  </>
-)}
-
-
-        {/* Bottom Actions */}
-        <div
-          style={{
-            marginTop: '16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0 20px',
-          }}
+          secondaryActions={[
+            {
+              content: 'Cancel',
+              onAction: () => setDeleteModal({ open: false, galleryId: null }),
+            },
+          ]}
         >
-          {/* Approve / Decline */}
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Button
-              primary
-              size="slim"
-              disabled={currentImage.status === 'approved'}
-              onClick={() => {
-                const newGallery = { ...activeGallery };
-                newGallery.images[activeImageIndex].status = 'approved';
-                setActiveGallery(newGallery);
-                fetcher.submit({ type: 'image', id: currentImage.id, status: 'approved' }, { method: 'POST' });
-              }}
-            >
-              Approve
-            </Button>
-            <Button
-              destructive
-              size="slim"
-              disabled={currentImage.status === 'declined'}
-              onClick={() => {
-                const newGallery = { ...activeGallery };
-                newGallery.images[activeImageIndex].status = 'declined';
-                setActiveGallery(newGallery);
-                fetcher.submit({ type: 'image', id: currentImage.id, status: 'declined' }, { method: 'POST' });
-              }}
-            >
-              Decline
-            </Button>
-          </div>
+          <Modal.Section>
+            <TextContainer>
+              <p>Are you sure you want to delete this gallery? This action cannot be undone.</p>
+            </TextContainer>
+          </Modal.Section>
+        </Modal>
+      )}
 
-          {/* Status */}
-          <Badge
-            tone={
-              currentImage.status === 'approved'
-                ? 'success'
-                : currentImage.status === 'declined'
-                ? 'critical'
-                : 'warning'
-            }
-          >
-            {capitalizeFirst(currentImage.status)}
-          </Badge>
-        </div>
-      </div>
-    </Modal.Section>
-  </Modal>
-)}
+      {/* image modal */}
+      {currentImage && (
+        <Modal open onClose={() => setActiveGallery(null)} title="Image" large>
+          <Modal.Section>
+            <div style={{ position: 'relative', textAlign: 'center', padding: '20px 0' }}>
+              <img
+                src={currentImage.url}
+                alt="Full"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '600px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                }}
+              />
 
+              {/* Left/Right Arrows */}
+              {activeGallery.images.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    disabled={activeImageIndex === 0}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '10px',
+                      transform: 'translateY(-50%)',
+                      zIndex: 20,
+                      backgroundColor: 'rgba(120, 118, 118, 0.5)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '30px',
+                      height: '30px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: activeImageIndex === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <Icon source={ArrowLeftIcon} color="base" />
+                  </button>
 
+                  <button
+                    onClick={nextImage}
+                    disabled={activeImageIndex === activeGallery.images.length - 1}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      right: '10px',
+                      transform: 'translateY(-50%)',
+                      zIndex: 20,
+                      backgroundColor: 'rgba(71, 71, 71, 0.5)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '30px',
+                      height: '30px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor:
+                        activeImageIndex === activeGallery.images.length - 1
+                          ? 'not-allowed'
+                          : 'pointer',
+                    }}
+                  >
+                    <Icon source={ArrowRightIcon} color="base" />
+                  </button>
+                </>
+              )}
+
+              {/* Bottom Actions */}
+              <div
+                style={{
+                  marginTop: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0 20px',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <Button
+                    primary
+                    size="slim"
+                    disabled={currentImage.status === 'approved'}
+                    onClick={() => {
+                      const newGallery = { ...activeGallery };
+                      newGallery.images[activeImageIndex].status = 'approved';
+                      setActiveGallery(newGallery);
+                      fetcher.submit({ type: 'image', id: currentImage.id, status: 'approved' }, { method: 'POST' });
+                    }}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    destructive
+                    size="slim"
+                    disabled={currentImage.status === 'declined'}
+                    onClick={() => {
+                      const newGallery = { ...activeGallery };
+                      newGallery.images[activeImageIndex].status = 'declined';
+                      setActiveGallery(newGallery);
+                      fetcher.submit({ type: 'image', id: currentImage.id, status: 'declined' }, { method: 'POST' });
+                    }}
+                  >
+                    Decline
+                  </Button>
+                </div>
+
+                <Badge
+                  tone={
+                    currentImage.status === 'approved'
+                      ? 'success'
+                      : currentImage.status === 'declined'
+                      ? 'critical'
+                      : 'warning'
+                  }
+                >
+                  {capitalizeFirst(currentImage.status)}
+                </Badge>
+              </div>
+            </div>
+          </Modal.Section>
+        </Modal>
+      )}
     </Page>
   );
 }

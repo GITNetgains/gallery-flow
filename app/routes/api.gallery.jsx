@@ -97,6 +97,7 @@ export const loader = async ({ request }) => {
     }
 
     const setting = await db.setting.findUnique({ where: { shop } });
+    const fetchVariantEnabled = setting.fetchVaraints;
     if (!setting) {
       return await cors(
         request,
@@ -226,34 +227,50 @@ export const action = async ({ request }) => {
       }
       galleryData.eventId = eventId;
     } else {
-      // Events disabled → allow products/blogs/pages/collections
-      const type = determineItemType(eventId);
-      if (type === "unknown") return json({ success: false, error: "Invalid upload target" }, { status: 400 });
+  // Events disabled → handle product/blog/page/collection or variant
+  let type = determineItemType(eventId);
+  let itemName = "";
 
-      let itemName = "";
-      if (type === "product") {
-        const products = await fetchProducts(shop, accessToken);
-        const matched = products.find((p) => p.id === eventId);
-        itemName = matched?.title || "Product";
-      } else if (type === "article") {
-        const blogs = await fetchBlogs(shop, accessToken);
-        const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
-        const matched = allArticles.find((a) => a.id === eventId);
-        itemName = matched?.title || "Article";
-      } else if (type === "collection") {
-        const collections = await fetchCollections(shop, accessToken);
-        const matched = collections.find((c) => c.id === eventId);
-        itemName = matched?.title || "Collection";
-      } else if (type === "page") {
-        const pages = await fetchPages(shop, accessToken);
-        const matched = pages.find((pg) => pg.id === eventId);
-        itemName = matched?.title || "Page";
-      }
+  if (fetchVariantEnabled && type === "product") {
+    // ✅ variant-based upload enabled
+    const products = await fetchProducts(shop, accessToken);
+    const variants = products.flatMap(p => p.variants.map(v => ({ ...v, productTitle: p.title })));
 
-      galleryData.itemId = eventId;
-      galleryData.itemType = type;
-      galleryData.itemName = itemName;
+    const matchedVariant = variants.find(v => v.id === eventId);
+    if (!matchedVariant) {
+      return json({ success: false, error: "Variant not found" }, { status: 404 });
     }
+
+    galleryData.itemId = matchedVariant.id;
+    galleryData.itemType = "variant";
+    galleryData.itemName = `${matchedVariant.productTitle} - ${matchedVariant.title}`;
+  } else {
+    // ✅ normal flow
+    if (type === "product") {
+      const products = await fetchProducts(shop, accessToken);
+      const matched = products.find((p) => p.id === eventId);
+      itemName = matched?.title || "Product";
+    } else if (type === "article") {
+      const blogs = await fetchBlogs(shop, accessToken);
+      const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
+      const matched = allArticles.find((a) => a.id === eventId);
+      itemName = matched?.title || "Article";
+    } else if (type === "collection") {
+      const collections = await fetchCollections(shop, accessToken);
+      const matched = collections.find((c) => c.id === eventId);
+      itemName = matched?.title || "Collection";
+    } else if (type === "page") {
+      const pages = await fetchPages(shop, accessToken);
+      const matched = pages.find((pg) => pg.id === eventId);
+      itemName = matched?.title || "Page";
+    }
+
+    galleryData.itemId = eventId;
+    galleryData.itemType = type;
+    galleryData.itemName = itemName;
+  }
+}
+
 
     // Save gallery
     const newGallery = await db.galleryUpload.create({ data: galleryData });

@@ -96,16 +96,27 @@ export const loader = async ({ request }) => {
       }
     } else {
       // ✅ Global galleries only
-      const galleries = await db.galleryUpload.findMany({
-        where: {
-          shop,
-          itemType: contentType,
-          status: "approved",
-        },
-        include: {
-          images: { where: { status: "approved" } },
-        },
-      });
+     let galleryWhere = {
+  shop,
+  status: "approved",
+};
+
+// 🔥 If variant setting is enabled, use itemType 'variant'
+const setting = await db.setting.findUnique({ where: { shop } });
+const fetchVariantEnabled = setting?.fetchVariantEnabled || false;
+
+if (fetchVariantEnabled) {
+  galleryWhere.itemType = "variant";
+} else {
+  galleryWhere.itemType = contentType;
+}
+
+const galleries = await db.galleryUpload.findMany({
+  where: galleryWhere,
+  include: {
+    images: { where: { status: "approved" } },
+  },
+});
 
       const matchingGalleries = galleries.filter(gallery =>
         matchContentId(gallery.itemId, contentId)
