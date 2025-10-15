@@ -91,13 +91,8 @@
 <script>
 (function() {
   const shop = "{{ shop.permanent_domain }}";
- {% if product %}
-  {% assign current_variant = product.selected_or_first_available_variant %}
-{% endif %}
-
-const contentId = {% if product %}"{{ current_variant.id }}"{% elsif collection %}"{{ collection.id }}"{% elsif article %}"{{ article.id }}"{% elsif page %}"{{ page.id }}"{% else %}""{% endif %};
-const contentType = {% if product %}"variant"{% elsif collection %}"collection"{% elsif article %}"article"{% elsif page %}"page"{% else %}"variant"{% endif %};
-
+  const contentId = {% if product %}"{{ product.id }}"{% elsif collection %}"{{ collection.id }}"{% elsif article %}"{{ article.id }}"{% elsif page %}"{{ page.id }}"{% else %}""{% endif %};
+  const contentType = {% if product %}"product"{% elsif collection %}"collection"{% elsif article %}"article"{% elsif page %}"page"{% else %}"product"{% endif %};
   const galleryDiv = document.getElementById("galleryflow-images");
   const errorDiv = document.getElementById("galleryflow-error");
 

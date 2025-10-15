@@ -230,34 +230,84 @@ async function fetchPurchaseSetting(){
 
 
   // Fetch items
-  async function fetchAllItems() {
-    try {
-      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`);
-      const json = await res.json();
-      console.log(json);
-      if (!json.success) return;
-      if (json.disabled) {
-        allItems = [
-          ...json.products.map(p => ({ id: p.id, name: p.title, type: "product",shopify_id:p.id , variant_id:p.id ,})),
-          ...json.blogs.flatMap(b => b.articles.map(a => ({ id: a.id, name: `${b.title} - ${a.title}`, type: "article" }))),
-          ...json.collections.map(c => ({ id: c.id, name: c.title, type: "collection" })),
-          ...json.pages.map(p => ({ id: p.id, name: p.title, type: "page" }))
-        ];
+async function fetchAllItems() {
+  try {
+    const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`);
+    const json = await res.json();
+    console.log(json);
+    if (!json.success) return;
+
+    // ⚠️ Check spelling here
+    const fetchVariants = json.setting.fetchVariants; 
+    console.log("fetchVariants:", fetchVariants);
+
+    if (json.disabled) {
+      let productItems = [];
+
+      if (fetchVariants) {
+        // Flatten all variants from all products
+        const products = Array.isArray(json.products) ? json.products : [];
+        productItems = products.flatMap(p =>
+          (p.variants || []).map(v => ({
+            id: v.id,
+            name: `${p.title} – ${v.title}`,
+            type: "product",
+            shopify_id: p.id,
+            variant_id: v.id
+          }))
+        );
       } else {
-        allItems = json.events.map(ev => ({
-          id: ev.id,
-          name: ev.name,
-          date: ev.date,
-          type: ev.type,
-          shopify_id:ev.shopifyId,
-          variant_id:ev.variant_id
+        const products = Array.isArray(json.products) ? json.products : [];
+        productItems = products.map(p => ({
+          id: p.id,
+          name: p.title,
+          type: "product",
+          shopify_id: p.id
         }));
       }
-    } catch (err) {
-      console.error("Error fetching items:", err);
+
+      allItems = [
+        ...productItems,
+        ...json.blogs.flatMap(b =>
+          b.articles.map(a => ({
+            id: a.id,
+            name: `${b.title} - ${a.title}`,
+            type: "article"
+          }))
+        ),
+        ...json.collections.map(c => ({
+          id: c.id,
+          name: c.title,
+          type: "collection"
+        })),
+        ...json.pages.map(p => ({
+          id: p.id,
+          name: p.title,
+          type: "page"
+        }))
+      ];
+
+    } else {
+      // Fallback for non-disabled
+      allItems = (json.events || []).map(ev => ({
+        id: ev.id,
+        name: ev.name,
+        date: ev.date,
+        type: ev.type,
+        shopify_id: ev.shopifyId,
+        variant_id: ev.variant_id
+      }));
     }
+
+    console.log("allItems:", allItems);
+
+  } catch (err) {
+    console.error("Error fetching items:", err);
   }
-  fetchAllItems();
+}
+
+fetchAllItems();
+
   
 
   // Populate event dropdown
