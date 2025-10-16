@@ -171,8 +171,8 @@ export const loader = async ({ request }) => {
 // Helpers
 // -----------------------------
 function determineItemType(shopifyId) {
-  if (shopifyId.includes("Product")) return "product";
   if (shopifyId.includes("ProductVariant")) return "variant";
+  if (shopifyId.includes("Product")) return "product";
   if (shopifyId.includes("Article")) return "article";
   if (shopifyId.includes("Blog")) return "blog";
   if (shopifyId.includes("Collection")) return "collection";
@@ -249,10 +249,11 @@ export const action = async ({ request }) => {
         const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
-      }else if (type === "variant") {
+      }else
+         if (type === "variant") {
          const products = await fetchProductByVariant(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
-        itemName = matched?.title || "Variant";
+        itemName = matched?.title || "variant";
       } else if (type === "article") {
         const blogs = await fetchBlogs(shop, accessToken);
         const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
