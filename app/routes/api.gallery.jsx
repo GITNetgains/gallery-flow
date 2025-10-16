@@ -7,6 +7,7 @@ import {
   fetchBlogs,
   fetchCollections,
   fetchPages,
+  fetchProductByVariant,
 } from "../shopifyApiUtils";
 import cloudinary from "cloudinary";
 import { authenticate } from "../shopify.server"; 
@@ -248,6 +249,10 @@ export const action = async ({ request }) => {
         const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
+      }else if (type === "variant") {
+         const products = await fetchProductByVariant(shop, accessToken);
+        const matched = products.find((p) => p.id === eventId);
+        itemName = matched?.title || "Variant";
       } else if (type === "article") {
         const blogs = await fetchBlogs(shop, accessToken);
         const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
