@@ -128,22 +128,34 @@ export const loader = async ({ request }) => {
         getCorsOptions(request)
       );
     } else {
-      // Events enabled → return past events **for this shop only**
-      const pastEvents = await db.event.findMany({
-        where: { date: { lt: new Date() }, shop },
-        orderBy: { date: "desc" },
-      });
+  // Events enabled → return past events **for this shop only**
+  const pastEvents = await db.event.findMany({
+    where: { date: { lt: new Date() }, shop },
+    orderBy: { date: "desc" },
+  });
 
-      return await cors(
-        request,
-        json({
-          success: true,
-          disabled: false,
-          events: pastEvents,
-        }),
-        getCorsOptions(request)
-      );
-    }
+  // Determine which ID to send based on setting
+  const formattedEvents = pastEvents.map(ev => ({
+    id: ev.id,
+    name: ev.name,
+    type: ev.type,
+    date: ev.date,
+    shopifyId: setting.fetchVaraints ? ev.variantId : ev.shopifyId,
+    variantId: ev.variantId || null
+  }));
+
+  return await cors(
+    request,
+    json({
+      success: true,
+      disabled: false,
+      setting,
+      events: formattedEvents,
+    }),
+    getCorsOptions(request)
+  );
+}
+
   } catch (error) {
     console.error("❌ Error in loader:", error);
     return await cors(

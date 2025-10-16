@@ -326,7 +326,7 @@ const handleSubmit = () => {
   setFormError('');
 
   // Submit the form
-  // fetcher.submit(formData, { method: 'POST' });
+  fetcher.submit(formData, { method: 'POST' });
 };
 
 
