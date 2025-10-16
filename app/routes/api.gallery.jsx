@@ -171,6 +171,7 @@ export const loader = async ({ request }) => {
 // -----------------------------
 function determineItemType(shopifyId) {
   if (shopifyId.includes("Product")) return "product";
+  if (shopifyId.includes("ProductVariant")) return "variant";
   if (shopifyId.includes("Article")) return "article";
   if (shopifyId.includes("Blog")) return "blog";
   if (shopifyId.includes("Collection")) return "collection";
