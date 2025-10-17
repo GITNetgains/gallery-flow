@@ -249,8 +249,7 @@ export const action = async ({ request }) => {
         const products = await fetchProducts(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "Product";
-      }else
-         if (type === "variant") {
+      }else if (type === "variant") {
          const products = await fetchProductByVariant(shop, accessToken);
         const matched = products.find((p) => p.id === eventId);
         itemName = matched?.title || "variant";

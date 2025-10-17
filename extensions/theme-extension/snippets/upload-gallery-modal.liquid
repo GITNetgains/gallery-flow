@@ -238,7 +238,7 @@ async function fetchAllItems() {
     if (!json.success) return;
 
     // ⚠️ Check spelling here
-    const fetchVariants = json.setting.fetchVaraints||false; 
+    const fetchVariants = json.setting.fetchVaraints || false; 
     console.log("fetchVariants:", fetchVariants);
 
     if (json.disabled) {
