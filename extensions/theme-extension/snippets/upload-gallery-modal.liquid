@@ -354,9 +354,12 @@ fetchAllItems();
 
   // Get selected option & IDs safely
   const selectedOption = eventSelect.selectedOptions[0];
-  const productId = extractNumericId(selectedOption?.dataset.productId || "0");
-  const variantId = extractNumericId(selectedOption?.dataset.variantId || "0");
-  console.log("productID",productId,"varinatID",variantId)
+const productId = extractNumericId(selectedOption?.dataset.productId || "0");
+const variantId = extractNumericId(selectedOption?.dataset.variantId || "0");
+
+formData.append("productId", productId);
+formData.append("variantId", variantId);
+
 
 const onlyenablepurchase=await fetchPurchaseSetting();
 

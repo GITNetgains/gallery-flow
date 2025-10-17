@@ -242,14 +242,24 @@ export const action = async ({ request }) => {
     } else {
       // Events disabled → allow products/blogs/pages/collections
       const type = determineItemType(eventId);
-      if (type === "unknown") return json({ success: false, error: "Invalid upload target" }, { status: 400 });
+      if (variantId && variantId !== "0") {
+  type = "variant";
+}
 
       let itemName = "";
-      if (type === "product") {
-        const products = await fetchProducts(shop, accessToken);
-        const matched = products.find((p) => p.id === eventId);
-        itemName = matched?.title || "Product";
-      } else if (type === "article") {
+      if (type === "variant") {
+  const variant = await fetchProductByVariant(shop, accessToken, variantId);
+  galleryData.itemId = variant.id;
+  galleryData.itemType = "variant";
+  galleryData.itemName = variant.title || "Variant";
+} else if (type === "product") {
+  const products = await fetchProducts(shop, accessToken);
+  const matched = products.find((p) => p.id === eventId);
+  galleryData.itemId = eventId;
+  galleryData.itemType = "product";
+  galleryData.itemName = matched?.title || "Product";
+}
+ else if (type === "article") {
         const blogs = await fetchBlogs(shop, accessToken);
         const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
         const matched = allArticles.find((a) => a.id === eventId);
