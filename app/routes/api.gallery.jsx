@@ -239,45 +239,72 @@ export const action = async ({ request }) => {
         );
       }
       galleryData.eventId = eventId;
-    } else {
-      // Events disabled → allow products/blogs/pages/collections
-      const type = determineItemType(eventId);
-      if (variantId && variantId !== "0") {
-  type = "variant";
+   // inside your action, near this line:
+} else {
+  // Events disabled → allow products/blogs/pages/collections
+  const type = determineItemType(eventId);
+  if (type === "unknown") return json({ success: false, error: "Invalid upload target" }, { status: 400 });
+
+  let itemName = "";
+  let itemId = eventId;
+  let itemType = type;
+
+  // ✅ Handle variant vs product based on setting
+  const productId = formData.get("productId");
+  const variantId = formData.get("variantId");
+
+  if (type === "product" && setting.fetchVaraints) {
+    itemType = "variant";
+    itemId = variantId; // use variant id instead of product
+  } else if (type === "product" && !setting.fetchVaraints) {
+    itemType = "product";
+    itemId = productId; // use product id
+  }
+
+  function extractNumericId(gid) {
+  return gid.split("/").pop();
 }
 
-      let itemName = "";
-      if (type === "variant") {
-  const variant = await fetchProductByVariant(shop, accessToken, variantId);
-  galleryData.itemId = variant.id;
-  galleryData.itemType = "variant";
-  galleryData.itemName = variant.title || "Variant";
-} else if (type === "product") {
-  const products = await fetchProducts(shop, accessToken);
-  const matched = products.find((p) => p.id === eventId);
-  galleryData.itemId = eventId;
-  galleryData.itemType = "product";
-  galleryData.itemName = matched?.title || "Product";
-}
- else if (type === "article") {
-        const blogs = await fetchBlogs(shop, accessToken);
-        const allArticles = blogs.flatMap((b) => b.articles.map((a) => ({ ...a, blogTitle: b.title })));
-        const matched = allArticles.find((a) => a.id === eventId);
-        itemName = matched?.title || "Article";
-      } else if (type === "collection") {
-        const collections = await fetchCollections(shop, accessToken);
-        const matched = collections.find((c) => c.id === eventId);
-        itemName = matched?.title || "Collection";
-      } else if (type === "page") {
-        const pages = await fetchPages(shop, accessToken);
-        const matched = pages.find((pg) => pg.id === eventId);
-        itemName = matched?.title || "Page";
-      }
+  // 🔍 fetch item name accordingly
+ if (itemType === "variant") {
+  const product = await fetchProductByVariant(shop, accessToken, itemId);
+  const numericId = extractNumericId(itemId); // get numeric id from GID
 
-      galleryData.itemId = eventId;
-      galleryData.itemType = type;
-      galleryData.itemName = itemName;
-    }
+  const variant = product.variants.find(v => extractNumericId(v.id) === numericId);
+
+  if (variant) {
+    itemName = `${product.title} - ${variant.title}`;
+  } else {
+    itemName = product.title; // fallback
+  }
+
+  console.log("Resolved variant name:", itemName);
+}else if (itemType === "product") {
+    const products = await fetchProducts(shop, accessToken);
+    const matched = products.find((p) => p.id === itemId);
+    itemName = matched?.title || "Product";
+  } else if (itemType === "article") {
+    const blogs = await fetchBlogs(shop, accessToken);
+    const allArticles = blogs.flatMap((b) =>
+      b.articles.map((a) => ({ ...a, blogTitle: b.title }))
+    );
+    const matched = allArticles.find((a) => a.id === itemId);
+    itemName = matched?.title || "Article";
+  } else if (itemType === "collection") {
+    const collections = await fetchCollections(shop, accessToken);
+    const matched = collections.find((c) => c.id === itemId);
+    itemName = matched?.title || "Collection";
+  } else if (itemType === "page") {
+    const pages = await fetchPages(shop, accessToken);
+    const matched = pages.find((pg) => pg.id === itemId);
+    itemName = matched?.title || "Page";
+  }
+
+  galleryData.itemId = itemId;
+  galleryData.itemType = itemType;
+  galleryData.itemName = itemName;
+}
+
 
     // Save gallery
     const newGallery = await db.galleryUpload.create({ data: galleryData });

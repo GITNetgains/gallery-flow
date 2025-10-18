@@ -89,51 +89,84 @@
 </style>
 
 <script>
-(function() {
+(async function() {
   const shop = "{{ shop.permanent_domain }}";
-  const contentId = {% if product %}"{{ product.id }}"{% elsif collection %}"{{ collection.id }}"{% elsif article %}"{{ article.id }}"{% elsif page %}"{{ page.id }}"{% else %}""{% endif %};
-  const contentType = {% if product %}"product"{% elsif collection %}"collection"{% elsif article %}"article"{% elsif page %}"page"{% else %}"product"{% endif %};
+  const urlParams = new URLSearchParams(window.location.search);
+  const variantParam = urlParams.get("variant");
+
+  const baseId = {% if product %}"{{ product.id }}"{% else %}""{% endif %};
+  let contentId = baseId;
+  let contentType = "product";
+
   const galleryDiv = document.getElementById("galleryflow-images");
   const errorDiv = document.getElementById("galleryflow-error");
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    galleryDiv.innerHTML = `<div style="width:100%; text-align:center; padding:20px;"><div class="galleryflow-loader"></div></div>`;
+  console.log("🔍 Initial contentId:", contentId, "type:", contentType);
 
-    try {
-      const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery-show?shop=${shop}&contentId=${contentId}&contentType=${contentType}`, { headers:{'Accept':'application/json'}, mode:'cors' });
-      if(!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      if(!data.approved || !data.images?.length) throw new Error(data.message || "No approved images");
+  galleryDiv.innerHTML = `<div style="width:100%; text-align:center; padding:20px;"><div class="galleryflow-loader"></div></div>`;
 
-      // Build grid cards
-      galleryDiv.innerHTML = data.images.map(img => `
-        <div class="galleryflow-card">
-          <div class="loader-overlay"><div class="galleryflow-loader"></div></div>
-          <img src="${img.url.startsWith('/')?'https://gallery-flow-five.vercel.app'+img.url:img.url}" alt="${img.alt||'Gallery image'}" loading="lazy">
-        </div>`).join('');
+  try {
+    const res = await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/gallery-show?shop=${shop}&contentId=${baseId}&contentType=product`, {
+      headers: { 'Accept': 'application/json' },
+      mode: 'cors'
+    });
 
-      // Wait for images to load and fade in
-      const images = galleryDiv.querySelectorAll('img');
-      images.forEach(img => {
-        if(img.complete) showImage(img);
-        else img.onload = () => showImage(img);
-      });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
+    console.log("⚙️ Gallery response:", data);
 
-      function showImage(img){
-        img.classList.add('loaded');
-        const overlay = img.previousElementSibling;
-        if(overlay) overlay.remove();
-      }
+    // ✅ Check if backend has fetchVariants enabled
+    const fetchVariants = data.setting.fetchVaraints || false;
+    console.log(data.setting,fetchVariants)
 
-    } catch(err) {
-      console.error("Gallery error:",err);
-      galleryDiv.style.display="none";
-      errorDiv.style.display="block";
-      errorDiv.innerHTML = `Failed to load gallery: ${err.message}<button onclick="location.reload()" style="margin-left:10px;padding:5px 10px;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;">Retry</button>`;
+    // 🔁 Adjust type/id if fetchVariants is true
+    if (fetchVariants && variantParam) {
+      contentId = variantParam;
+      contentType = "variant";
+      console.log("✅ Using variant mode:", contentId);
+    } else {
+      console.log("🚫 Variant mode disabled or no variant param.");
     }
-  });
+
+    // Re-fetch the correct images for contentType
+    const res2 = await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/gallery-show?shop=${shop}&contentId=${contentId}&contentType=${contentType}`, {
+      headers: { 'Accept': 'application/json' },
+      mode: 'cors'
+    });
+    if (!res2.ok) throw new Error(`HTTP error! status: ${res2.status}`);
+    const finalData = await res2.json();
+
+    if (!finalData.approved || !finalData.images?.length)
+      throw new Error(finalData.message || "No approved images");
+
+    // Build grid cards
+    galleryDiv.innerHTML = finalData.images.map(img => `
+      <div class="galleryflow-card">
+        <div class="loader-overlay"><div class="galleryflow-loader"></div></div>
+        <img src="${img.url.startsWith('/') ? 'https://gauge-throw-ton-judy.trycloudflare.com' + img.url : img.url}" alt="${img.alt || 'Gallery image'}" loading="lazy">
+      </div>`).join('');
+
+    const images = galleryDiv.querySelectorAll('img');
+    images.forEach(img => {
+      if (img.complete) showImage(img);
+      else img.onload = () => showImage(img);
+    });
+
+    function showImage(img) {
+      img.classList.add('loaded');
+      const overlay = img.previousElementSibling;
+      if (overlay) overlay.remove();
+    }
+
+  } catch (err) {
+    console.error("Gallery error:", err);
+    galleryDiv.style.display = "none";
+    errorDiv.style.display = "block";
+    errorDiv.innerHTML = `Failed to load gallery: ${err.message}<button onclick="location.reload()" style="margin-left:10px;padding:5px 10px;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;">Retry</button>`;
+  }
 })();
 </script>
+
 
 {% schema %}
 {

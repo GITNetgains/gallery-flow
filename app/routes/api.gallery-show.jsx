@@ -17,6 +17,7 @@ const matchContentId = (storedId, queryId) => {
 // -----------------------------
 export const loader = async ({ request }) => {
   try {
+    
     const url = new URL(request.url);
     let shop = url.searchParams.get("shop"); // optional now
     const contentId = url.searchParams.get("contentId");
@@ -126,6 +127,7 @@ export const loader = async ({ request }) => {
           success: false,
           approved: false,
           message: "No approved gallery uploads found",
+          setting,
           debug: { shop, contentId, contentType, addEventEnabled: setting.addEventEnabled },
         }),
         { origin: "*", methods: ["GET", "POST", "OPTIONS"] }

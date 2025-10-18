@@ -216,7 +216,7 @@
 
 async function fetchPurchaseSetting(){
   try{
-    const res=await fetch(`https://gallery-flow-five.vercel.app/api/purchasetrue?shop=${appData.shop}`);
+    const res=await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/purchasetrue?shop=${appData.shop}`);
     const json =await res.json();
     if(!json.onlyPurchasedItem){
       return false;
@@ -232,7 +232,7 @@ async function fetchPurchaseSetting(){
   // Fetch items
 async function fetchAllItems() {
   try {
-    const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`);
+    const res = await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/gallery?shop=${appData.shop}`);
     const json = await res.json();
     console.log(json);
     if (!json.success) return;
@@ -377,7 +377,7 @@ const onlyenablepurchase=await fetchPurchaseSetting();
 
   // ✅ Proceed with upload if purchased or IDs missing
   try {
-    const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery?shop=${appData.shop}`, {
+    const res = await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/gallery?shop=${appData.shop}`, {
       method: "POST",
       body: formData
     });
