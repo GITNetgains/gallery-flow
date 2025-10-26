@@ -106,7 +106,7 @@
   galleryDiv.innerHTML = `<div style="width:100%; text-align:center; padding:20px;"><div class="galleryflow-loader"></div></div>`;
 
   try {
-    const res = await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/gallery-show?shop=${shop}&contentId=${baseId}&contentType=product`, {
+    const res = await fetch(`https://gallery-flow-five.vercel.app/api/gallery-show?shop=${shop}&contentId=${baseId}&contentType=product`, {
       headers: { 'Accept': 'application/json' },
       mode: 'cors'
     });
@@ -129,7 +129,7 @@
     }
 
     // Re-fetch the correct images for contentType
-    const res2 = await fetch(`https://gauge-throw-ton-judy.trycloudflare.com/api/gallery-show?shop=${shop}&contentId=${contentId}&contentType=${contentType}`, {
+    const res2 = await fetch(`https://gallery-flow-five.vercel.app/api/gallery-show?shop=${shop}&contentId=${contentId}&contentType=${contentType}`, {
       headers: { 'Accept': 'application/json' },
       mode: 'cors'
     });
@@ -143,7 +143,7 @@
     galleryDiv.innerHTML = finalData.images.map(img => `
       <div class="galleryflow-card">
         <div class="loader-overlay"><div class="galleryflow-loader"></div></div>
-        <img src="${img.url.startsWith('/') ? 'https://gauge-throw-ton-judy.trycloudflare.com' + img.url : img.url}" alt="${img.alt || 'Gallery image'}" loading="lazy">
+        <img src="${img.url.startsWith('/') ? 'https://gallery-flow-five.vercel.app' + img.url : img.url}" alt="${img.alt || 'Gallery image'}" loading="lazy">
       </div>`).join('');
 
     const images = galleryDiv.querySelectorAll('img');
